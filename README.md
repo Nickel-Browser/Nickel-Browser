@@ -253,7 +253,7 @@ See [LICENSE](LICENSE) for full details.
 ---
 
 <p align="center">
-  <strong>Made with 💚 by sho.islam0311, for the community.</strong>
+  <strong>Made with 💚 by [sho.islam0311](https://github.com/Shoislam0311), for the community.</strong>
 </p>
 
 <p align="center">
