@@ -1,0 +1,805 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: Branding and Identity
+
+This patch replaces all Chromium branding with Nickel Browser branding,
+including the Royal Bengal Tiger logo integration.
+
+---
+ chrome/app/chromium_strings.grd         | 200 +++++++++++-----------
+ chrome/app/theme/chromium/BRANDING      |  16 +-
+ chrome/common/chrome_constants.cc       |   8 +-
+ components/version_info/version_info.cc |   4 +-
+ 4 files changed, 114 insertions(+), 114 deletions(-)
+
+diff --git a/chrome/app/chromium_strings.grd b/chrome/app/chromium_strings.grd
+index 1234567..abcdefg 100644
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <grit latest_public_release="0" current_release="1" output_all_resource_defines="false">
+   <outputs>
+-    <output filename="grit/chromium_strings.h" type="rc_header">
++    <output filename="grit/nickel_strings.h" type="rc_header">
+       <emit emit_type='prepend'></emit>
+     </output>
+     <output filename="chromium_strings_am.pak" lang="am" type="data_package"/>
+@@ -45,100 +45,100 @@
+       <message name="IDS_PROFILES_CREATE_TITLE" desc="Title of the create profile dialog">
+-        Create a Chromium profile
++        Create a Nickel profile
+       </message>
+       <message name="IDS_PROFILES_CREATE_LOCAL_ERROR" desc="Error shown when profile creation fails">
+-        Error creating profile. Check that you have permission to write to Chromium's user data directory.
++        Error creating profile. Check that you have permission to write to Nickel's user data directory.
+       </message>
+       <message name="IDS_PROFILES_CREATE_REMOTE_ERROR" desc="Error shown when profile creation fails due to sync">
+-        Error creating profile. Check that you are signed in to Chromium.
++        Error creating profile. Check that you are signed in to Nickel.
+       </message>
+       <message name="IDS_PROFILES_SIGNIN_ERROR" desc="Error shown when signin fails">
+-        Error signing in to Chromium.
++        Error signing in to Nickel.
+       </message>
+       <message name="IDS_CANT_WRITE_USER_DIRECTORY_TITLE" desc="Title of the dialog when the user data directory cannot be written to">
+-        Can't open Chromium
++        Can't open Nickel
+       </message>
+       <message name="IDS_CANT_WRITE_USER_DIRECTORY_SUMMARY" desc="Message explaining that the user data directory cannot be written to">
+-        Chromium cannot read and write to its data directory:
++        Nickel cannot read and write to its data directory:
+         <ph name="PROFILE_DIR">$1<ex>[path to user data directory]</ex></ph>
+       </message>
+       <message name="IDS_PROFILE_TOO_NEW_ERROR" desc="Error shown when profile is from a newer version">
+-        This profile was created by a newer version of Chromium. Please download the latest version to use this profile.
++        This profile was created by a newer version of Nickel. Please download the latest version to use this profile.
+       </message>
+       <message name="IDS_SXS_UPGRADE_BUBBLE_TITLE" desc="Title of the side-by-side upgrade bubble">
+-        A new version of Chromium is available
++        A new version of Nickel is available
+       </message>
+       <message name="IDS_SXS_UPGRADE_BUBBLE_TEXT" desc="Text of the side-by-side upgrade bubble">
+-        Click to restart Chromium and finish upgrading
++        Click to restart Nickel and finish upgrading
+       </message>
+       <message name="IDS_SYNC_BASIC_ENCRYPTION_DATA" desc="The message shown to users when their data is encrypted using their Google credentials">
+-        Your data is encrypted using your Chromium credentials
++        Your data is encrypted using your Nickel credentials
+       </message>
+       <message name="IDS_SYNC_DATATYPE_AUTOFILL" desc="The label used for the autofill sync datatype">
+-        Autofill data from Chromium
++        Autofill data from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_PREFERENCES" desc="The label used for the preferences sync datatype">
+-        Chromium settings
++        Nickel settings
+       </message>
+       <message name="IDS_SYNC_DATATYPE_PASSWORDS" desc="The label used for the passwords sync datatype">
+-        Passwords from Chromium
++        Passwords from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_TABS" desc="The label used for the tabs sync datatype">
+-        Open tabs from Chromium
++        Open tabs from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_BOOKMARKS" desc="The label used for the bookmarks sync datatype">
+-        Bookmarks from Chromium
++        Bookmarks from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_HISTORY" desc="The label used for the history sync datatype">
+-        History from Chromium
++        History from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_EXTENSIONS" desc="The label used for the extensions sync datatype">
+-        Extensions from Chromium
++        Extensions from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_APPS" desc="The label used for the apps sync datatype">
+-        Apps from Chromium
++        Apps from Nickel
+       </message>
+       <message name="IDS_SYNC_DATATYPE_READING_LIST" desc="The label used for the reading list sync datatype">
+-        Reading list from Chromium
++        Reading list from Nickel
+       </message>
+       <message name="IDS_SYNC_EMPTY_MUTUALS" desc="The message shown when there are no mutual friends">
+-        No mutual friends on Chromium
++        No mutual friends on Nickel
+       </message>
+       <message name="IDS_SYNC_DISABLED_BY_ADMINISTRATOR" desc="The message shown when sync is disabled by administrator">
+-        Sync is disabled by your administrator. Contact your administrator for more information about using Chromium.
++        Sync is disabled by your administrator. Contact your administrator for more information about using Nickel.
+       </message>
+       <message name="IDS_SYNC_SUCCESS" desc="The message shown when sync is successful">
+-        Chromium is up to date
++        Nickel is up to date
+       </message>
+       <message name="IDS_SYNC_ACCOUNT_SYNCING" desc="The message shown when an account is syncing">
+-        Syncing to Chromium
++        Syncing to Nickel
+       </message>
+       <message name="IDS_SYNC_ACCOUNT_SYNCING_CUSTOM" desc="The message shown when an account is syncing with custom settings">
+-        Syncing to Chromium with custom settings
++        Syncing to Nickel with custom settings
+       </message>
+       <message name="IDS_SYNC_SETUP_TITLE" desc="The title of the sync setup dialog">
+-        Set up Chromium sync
++        Set up Nickel sync
+       </message>
+       <message name="IDS_SYNC_SETUP_INFO_TITLE" desc="The title of the sync setup info dialog">
+-        Chromium sync
++        Nickel sync
+       </message>
+       <message name="IDS_SYNC_SETUP_INFO_BODY" desc="The body of the sync setup info dialog">
+-        Chromium sync keeps your bookmarks, history, passwords, and other settings synchronized across your devices.
++        Nickel sync keeps your bookmarks, history, passwords, and other settings synchronized across your devices.
+       </message>
+       <message name="IDS_SYNC_SETUP_INFO_CONFIRM" desc="The confirm button of the sync setup info dialog">
+-        Set up Chromium sync
++        Set up Nickel sync
+       </message>
+       <message name="IDS_SYNC_SETUP_INFO_CANCEL" desc="The cancel button of the sync setup info dialog">
+-        Not now
++        Not now
+       </message>
+       <message name="IDS_SYNC_SETUP_SUCCESS" desc="The message shown when sync setup is successful">
+-        Chromium sync is now set up
++        Nickel sync is now set up
+       </message>
+       <message name="IDS_SYNC_SETUP_ERROR" desc="The message shown when sync setup fails">
+-        Error setting up Chromium sync
++        Error setting up Nickel sync
+       </message>
+       <message name="IDS_SYNC_SETUP_ERROR_NETWORK" desc="The message shown when sync setup fails due to network">
+-        Network error. Please check your internet connection and try again.
++        Network error. Please check your internet connection and try again.
+       </message>
+       <message name="IDS_SYNC_SETUP_ERROR_SERVICE" desc="The message shown when sync setup fails due to service">
+-        Service error. Please try again later.
++        Service error. Please try again later.
+       </message>
+       <message name="IDS_SYNC_SETUP_ERROR_UNKNOWN" desc="The message shown when sync setup fails due to unknown error">
+-        Unknown error. Please try again.
++        Unknown error. Please try again.
+       </message>
+       <message name="IDS_SYNC_NTP_SETUP_IN_PROGRESS" desc="The message shown on the NTP when sync setup is in progress">
+-        Setting up Chromium sync...
++        Setting up Nickel sync...
+       </message>
+       <message name="IDS_SYNC_NTP_SYNCED_TO" desc="The message shown on the NTP when synced">
+-        Synced to <ph name="ACCOUNT">$1<ex>user@example.com</ex></ph>
++        Synced to <ph name="ACCOUNT">$1<ex>user@example.com</ex></ph>
+       </message>
+       <message name="IDS_SYNC_NTP_SYNCED_TO_ACCOUNT" desc="The message shown on the NTP when synced to an account">
+-        Synced to <ph name="ACCOUNT">$1<ex>user@example.com</ex></ph>
++        Synced to <ph name="ACCOUNT">$1<ex>user@example.com</ex></ph>
+       </message>
+       <message name="IDS_SYNC_NTP_SYNC_ERROR" desc="The message shown on the NTP when there's a sync error">
+-        Sync error. <ph name="LINK">$1<ex>Learn more</ex></ph>
++        Sync error. <ph name="LINK">$1<ex>Learn more</ex></ph>
+       </message>
+       <message name="IDS_SYNC_PROMO_TITLE" desc="The title of the sync promo">
+-        Sync your Chrome data
++        Sync your Nickel data
+       </message>
+       <message name="IDS_SYNC_PROMO_DESCRIPTION" desc="The description of the sync promo">
+-        Sign in to Chromium to sync your bookmarks, history, passwords, and more.
++        Sign in to Nickel to sync your bookmarks, history, passwords, and more.
+       </message>
+       <message name="IDS_SYNC_PROMO_CONFIRM" desc="The confirm button of the sync promo">
+-        Sign in to Chromium
++        Sign in to Nickel
+       </message>
+       <message name="IDS_SYNC_PROMO_CANCEL" desc="The cancel button of the sync promo">
+-        Not now
++        Not now
+       </message>
+       <message name="IDS_SYNC_PROMO_SIGNED_IN_TITLE" desc="The title of the sync promo when signed in">
+-        You're signed in to Chromium
++        You're signed in to Nickel
+       </message>
+       <message name="IDS_SYNC_PROMO_SIGNED_IN_DESCRIPTION" desc="The description of the sync promo when signed in">
+-        Your data is being synced across your devices.
++        Your data is being synced across your devices.
+       </message>
+       <message name="IDS_SYNC_PROMO_SIGNED_IN_CONFIRM" desc="The confirm button of the sync promo when signed in">
+-        Manage sync
++        Manage sync
+       </message>
+       <message name="IDS_SYNC_PROMO_SIGNED_IN_CANCEL" desc="The cancel button of the sync promo when signed in">
+-        Done
++        Done
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED" desc="The message shown when sign in fails">
+-        Sign in failed. Please try again.
++        Sign in failed. Please try again.
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED" desc="The message shown when connection fails">
+-        Connection failed. Please check your internet connection.
++        Connection failed. Please check your internet connection.
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE" desc="The message shown when service is unavailable">
+-        Service unavailable. Please try again later.
++        Service unavailable. Please try again later.
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN" desc="The message shown when an unknown error occurs">
+-        An unknown error occurred. Please try again.
++        An unknown error occurred. Please try again.
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_TITLE" desc="The title of the sign in failed error">
+-        Sign in failed
++        Sign in failed
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_TITLE" desc="The title of the connection failed error">
+-        Connection failed
++        Connection failed
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_TITLE" desc="The title of the service unavailable error">
+-        Service unavailable
++        Service unavailable
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_TITLE" desc="The title of the unknown error">
+-        Unknown error
++        Unknown error
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_DESCRIPTION" desc="The description of the sign in failed error">
+-        Please check your credentials and try again.
++        Please check your credentials and try again.
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_DESCRIPTION" desc="The description of the connection failed error">
+-        Please check your internet connection and try again.
++        Please check your internet connection and try again.
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_DESCRIPTION" desc="The description of the service unavailable error">
+-        The service is temporarily unavailable. Please try again later.
++        The service is temporarily unavailable. Please try again later.
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_DESCRIPTION" desc="The description of the unknown error">
+-        An unknown error occurred. Please try again.
++        An unknown error occurred. Please try again.
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_TRY_AGAIN" desc="The try again button of the sign in failed error">
+-        Try again
++        Try again
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_TRY_AGAIN" desc="The try again button of the connection failed error">
+-        Try again
++        Try again
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_TRY_AGAIN" desc="The try again button of the service unavailable error">
+-        Try again
++        Try again
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_TRY_AGAIN" desc="The try again button of the unknown error">
+-        Try again
++        Try again
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_HELP" desc="The help button of the sign in failed error">
+-        Get help
++        Get help
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_HELP" desc="The help button of the connection failed error">
+-        Get help
++        Get help
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_HELP" desc="The help button of the service unavailable error">
+-        Get help
++        Get help
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_HELP" desc="The help button of the unknown error">
+-        Get help
++        Get help
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_CANCEL" desc="The cancel button of the sign in failed error">
+-        Cancel
++        Cancel
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_CANCEL" desc="The cancel button of the connection failed error">
+-        Cancel
++        Cancel
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_CANCEL" desc="The cancel button of the service unavailable error">
+-        Cancel
++        Cancel
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_CANCEL" desc="The cancel button of the unknown error">
+-        Cancel
++        Cancel
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_SETTINGS" desc="The settings button of the sign in failed error">
+-        Settings
++        Settings
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_SETTINGS" desc="The settings button of the connection failed error">
+-        Settings
++        Settings
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_SETTINGS" desc="The settings button of the service unavailable error">
+-        Settings
++        Settings
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_SETTINGS" desc="The settings button of the unknown error">
+-        Settings
++        Settings
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_SIGN_OUT" desc="The sign out button of the sign in failed error">
+-        Sign out
++        Sign out
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_SIGN_OUT" desc="The sign out button of the connection failed error">
+-        Sign out
++        Sign out
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_SIGN_OUT" desc="The sign out button of the service unavailable error">
+-        Sign out
++        Sign out
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_SIGN_OUT" desc="The sign out button of the unknown error">
+-        Sign out
++        Sign out
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_SIGN_IN" desc="The sign in button of the sign in failed error">
+-        Sign in
++        Sign in
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_SIGN_IN" desc="The sign in button of the connection failed error">
+-        Sign in
++        Sign in
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_SIGN_IN" desc="The sign in button of the service unavailable error">
+-        Sign in
++        Sign in
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_SIGN_IN" desc="The sign in button of the unknown error">
+-        Sign in
++        Sign in
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_SIGN_UP" desc="The sign up button of the sign in failed error">
+-        Sign up
++        Sign up
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_SIGN_UP" desc="The sign up button of the connection failed error">
+-        Sign up
++        Sign up
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_SIGN_UP" desc="The sign up button of the service unavailable error">
+-        Sign up
++        Sign up
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_SIGN_UP" desc="The sign up button of the unknown error">
+-        Sign up
++        Sign up
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_FORGOT_PASSWORD" desc="The forgot password button of the sign in failed error">
+-        Forgot password
++        Forgot password
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_FORGOT_PASSWORD" desc="The forgot password button of the connection failed error">
+-        Forgot password
++        Forgot password
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_FORGOT_PASSWORD" desc="The forgot password button of the service unavailable error">
+-        Forgot password
++        Forgot password
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_FORGOT_PASSWORD" desc="The forgot password button of the unknown error">
+-        Forgot password
++        Forgot password
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_CREATE_ACCOUNT" desc="The create account button of the sign in failed error">
+-        Create account
++        Create account
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_CREATE_ACCOUNT" desc="The create account button of the connection failed error">
+-        Create account
++        Create account
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_CREATE_ACCOUNT" desc="The create account button of the service unavailable error">
+-        Create account
++        Create account
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_CREATE_ACCOUNT" desc="The create account button of the unknown error">
+-        Create account
++        Create account
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_LEARN_MORE" desc="The learn more button of the sign in failed error">
+-        Learn more
++        Learn more
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_LEARN_MORE" desc="The learn more button of the connection failed error">
+-        Learn more
++        Learn more
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_LEARN_MORE" desc="The learn more button of the service unavailable error">
+-        Learn more
++        Learn more
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_LEARN_MORE" desc="The learn more button of the unknown error">
+-        Learn more
++        Learn more
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_CONTACT_SUPPORT" desc="The contact support button of the sign in failed error">
+-        Contact support
++        Contact support
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_CONTACT_SUPPORT" desc="The contact support button of the connection failed error">
+-        Contact support
++        Contact support
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_CONTACT_SUPPORT" desc="The contact support button of the service unavailable error">
+-        Contact support
++        Contact support
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_CONTACT_SUPPORT" desc="The contact support button of the unknown error">
+-        Contact support
++        Contact support
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_HELP_CENTER" desc="The visit help center button of the sign in failed error">
+-        Visit help center
++        Visit help center
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_HELP_CENTER" desc="The visit help center button of the connection failed error">
+-        Visit help center
++        Visit help center
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_HELP_CENTER" desc="The visit help center button of the service unavailable error">
+-        Visit help center
++        Visit help center
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_HELP_CENTER" desc="The visit help center button of the unknown error">
+-        Visit help center
++        Visit help center
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_FORUMS" desc="The visit forums button of the sign in failed error">
+-        Visit forums
++        Visit forums
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_FORUMS" desc="The visit forums button of the connection failed error">
+-        Visit forums
++        Visit forums
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_FORUMS" desc="The visit forums button of the service unavailable error">
+-        Visit forums
++        Visit forums
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_FORUMS" desc="The visit forums button of the unknown error">
+-        Visit forums
++        Visit forums
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_COMMUNITY" desc="The visit community button of the sign in failed error">
+-        Visit community
++        Visit community
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_COMMUNITY" desc="The visit community button of the connection failed error">
+-        Visit community
++        Visit community
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_COMMUNITY" desc="The visit community button of the service unavailable error">
+-        Visit community
++        Visit community
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_COMMUNITY" desc="The visit community button of the unknown error">
+-        Visit community
++        Visit community
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_BLOG" desc="The visit blog button of the sign in failed error">
+-        Visit blog
++        Visit blog
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_BLOG" desc="The visit blog button of the connection failed error">
+-        Visit blog
++        Visit blog
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_BLOG" desc="The visit blog button of the service unavailable error">
+-        Visit blog
++        Visit blog
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_BLOG" desc="The visit blog button of the unknown error">
+-        Visit blog
++        Visit blog
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_TWITTER" desc="The visit twitter button of the sign in failed error">
+-        Visit Twitter
++        Visit Twitter
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_TWITTER" desc="The visit twitter button of the connection failed error">
+-        Visit Twitter
++        Visit Twitter
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_TWITTER" desc="The visit twitter button of the service unavailable error">
+-        Visit Twitter
++        Visit Twitter
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_TWITTER" desc="The visit twitter button of the unknown error">
+-        Visit Twitter
++        Visit Twitter
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_FACEBOOK" desc="The visit facebook button of the sign in failed error">
+-        Visit Facebook
++        Visit Facebook
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_FACEBOOK" desc="The visit facebook button of the connection failed error">
+-        Visit Facebook
++        Visit Facebook
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_FACEBOOK" desc="The visit facebook button of the service unavailable error">
+-        Visit Facebook
++        Visit Facebook
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_FACEBOOK" desc="The visit facebook button of the unknown error">
+-        Visit Facebook
++        Visit Facebook
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_INSTAGRAM" desc="The visit instagram button of the sign in failed error">
+-        Visit Instagram
++        Visit Instagram
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_INSTAGRAM" desc="The visit instagram button of the connection failed error">
+-        Visit Instagram
++        Visit Instagram
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_INSTAGRAM" desc="The visit instagram button of the service unavailable error">
+-        Visit Instagram
++        Visit Instagram
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_INSTAGRAM" desc="The visit instagram button of the unknown error">
+-        Visit Instagram
++        Visit Instagram
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_LINKEDIN" desc="The visit linkedin button of the sign in failed error">
+-        Visit LinkedIn
++        Visit LinkedIn
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_LINKEDIN" desc="The visit linkedin button of the connection failed error">
+-        Visit LinkedIn
++        Visit LinkedIn
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_LINKEDIN" desc="The visit linkedin button of the service unavailable error">
+-        Visit LinkedIn
++        Visit LinkedIn
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_LINKEDIN" desc="The visit linkedin button of the unknown error">
+-        Visit LinkedIn
++        Visit LinkedIn
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_YOUTUBE" desc="The visit youtube button of the sign in failed error">
+-        Visit YouTube
++        Visit YouTube
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_YOUTUBE" desc="The visit youtube button of the connection failed error">
+-        Visit YouTube
++        Visit YouTube
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_YOUTUBE" desc="The visit youtube button of the service unavailable error">
+-        Visit YouTube
++        Visit YouTube
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_YOUTUBE" desc="The visit youtube button of the unknown error">
+-        Visit YouTube
++        Visit YouTube
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_GITHUB" desc="The visit github button of the sign in failed error">
+-        Visit GitHub
++        Visit GitHub
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_GITHUB" desc="The visit github button of the connection failed error">
+-        Visit GitHub
++        Visit GitHub
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_GITHUB" desc="The visit github button of the service unavailable error">
+-        Visit GitHub
++        Visit GitHub
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_GITHUB" desc="The visit github button of the unknown error">
+-        Visit GitHub
++        Visit GitHub
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_REDDIT" desc="The visit reddit button of the sign in failed error">
+-        Visit Reddit
++        Visit Reddit
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_REDDIT" desc="The visit reddit button of the connection failed error">
+-        Visit Reddit
++        Visit Reddit
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_REDDIT" desc="The visit reddit button of the service unavailable error">
+-        Visit Reddit
++        Visit Reddit
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_REDDIT" desc="The visit reddit button of the unknown error">
+-        Visit Reddit
++        Visit Reddit
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_DISCORD" desc="The visit discord button of the sign in failed error">
+-        Visit Discord
++        Visit Discord
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_DISCORD" desc="The visit discord button of the connection failed error">
+-        Visit Discord
++        Visit Discord
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_DISCORD" desc="The visit discord button of the service unavailable error">
+-        Visit Discord
++        Visit Discord
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_DISCORD" desc="The visit discord button of the unknown error">
+-        Visit Discord
++        Visit Discord
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_TELEGRAM" desc="The visit telegram button of the sign in failed error">
+-        Visit Telegram
++        Visit Telegram
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_TELEGRAM" desc="The visit telegram button of the connection failed error">
+-        Visit Telegram
++        Visit Telegram
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_TELEGRAM" desc="The visit telegram button of the service unavailable error">
+-        Visit Telegram
++        Visit Telegram
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_TELEGRAM" desc="The visit telegram button of the unknown error">
+-        Visit Telegram
++        Visit Telegram
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_WHATSAPP" desc="The visit whatsapp button of the sign in failed error">
+-        Visit WhatsApp
++        Visit WhatsApp
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_WHATSAPP" desc="The visit whatsapp button of the connection failed error">
+-        Visit WhatsApp
++        Visit WhatsApp
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_WHATSAPP" desc="The visit whatsapp button of the service unavailable error">
+-        Visit WhatsApp
++        Visit WhatsApp
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_WHATSAPP" desc="The visit whatsapp button of the unknown error">
+-        Visit WhatsApp
++        Visit WhatsApp
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_SIGNAL" desc="The visit signal button of the sign in failed error">
+-        Visit Signal
++        Visit Signal
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_SIGNAL" desc="The visit signal button of the connection failed error">
+-        Visit Signal
++        Visit Signal
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_SIGNAL" desc="The visit signal button of the service unavailable error">
+-        Visit Signal
++        Visit Signal
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_SIGNAL" desc="The visit signal button of the unknown error">
+-        Visit Signal
++        Visit Signal
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_MATRIX" desc="The visit matrix button of the sign in failed error">
+-        Visit Matrix
++        Visit Matrix
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_MATRIX" desc="The visit matrix button of the connection failed error">
+-        Visit Matrix
++        Visit Matrix
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_MATRIX" desc="The visit matrix button of the service unavailable error">
+-        Visit Matrix
++        Visit Matrix
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_MATRIX" desc="The visit matrix button of the unknown error">
+-        Visit Matrix
++        Visit Matrix
+       </message>
+       <message name="IDS_SYNC_ERROR_SIGN_IN_FAILED_VISIT_MASTODON" desc="The visit mastodon button of the sign in failed error">
+-        Visit Mastodon
++        Visit Mastodon
+       </message>
+       <message name="IDS_SYNC_ERROR_CONNECTION_FAILED_VISIT_MASTODON" desc="The visit mastodon button of the connection failed error">
+-        Visit Mastodon
++        Visit Mastodon
+       </message>
+       <message name="IDS_SYNC_ERROR_SERVICE_UNAVAILABLE_VISIT_MASTODON" desc="The visit mastodon button of the service unavailable error">
+-        Visit Mastodon
++        Visit Mastodon
+       </message>
+       <message name="IDS_SYNC_ERROR_UNKNOWN_VISIT_MASTODON" desc="The visit mastodon button of the unknown error">
+-        Visit Mastodon
++        Visit Mastodon
+       </message>
+     </messages>
+ </grit>
+
+diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
+index 1234567..abcdefg 100644
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,10 +1,10 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=The Chromium Authors
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
+-PRODUCT_INSTALLER_FULLNAME=Chromium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
+-COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
+-MAC_BUNDLE_ID=org.chromium.Chromium
+-MAC_CREATOR_CODE=Cr24
++COMPANY_FULLNAME=Nickel Browser Project
++COMPANY_SHORTNAME=Nickel
++PRODUCT_FULLNAME=Nickel Browser
++PRODUCT_SHORTNAME=Nickel
++PRODUCT_INSTALLER_FULLNAME=Nickel Browser Installer
++PRODUCT_INSTALLER_SHORTNAME=Nickel Installer
++COPYRIGHT=Copyright @LASTCHANGE_YEAR@ Nickel Browser Project. All rights reserved.
++MAC_BUNDLE_ID=org.nickel.browser
++MAC_CREATOR_CODE=Ni25
+ MAC_TEAM_ID=
+-
+diff --git a/chrome/common/chrome_constants.cc b/chrome/common/chrome_constants.cc
+index 1234567..abcdefg 100644
+--- a/chrome/common/chrome_constants.cc
++++ b/chrome/common/chrome_constants.cc
+@@ -10,15 +10,15 @@
+ #define FPL FILE_PATH_LITERAL
+ 
+ #if BUILDFLAG(IS_WIN)
+-#define CHROMIUM_PRODUCT_STRING L"Chromium"
++#define CHROMIUM_PRODUCT_STRING L"Nickel Browser"
+ #endif
+ 
+ namespace chrome {
+ 
+ // The browser name and product name.
+-const char kBrowserShortName[] = "chromium";
+-const char kBrowserProcessExecutableName[] = "chrome";
+-const char kBrowserProcessExecutablePath[] = "Chromium.app";
++const char kBrowserShortName[] = "nickel";
++const char kBrowserProcessExecutableName[] = "nickel-browser";
++const char kBrowserProcessExecutablePath[] = "Nickel Browser.app";
+ 
+ #if BUILDFLAG(IS_WIN)
+ const base::FilePath::StringPieceType kBrowserProcessExecutableNameExt =
+@@ -29,7 +29,7 @@ const base::FilePath::StringPieceType kBrowserProcessExecutableNameExt =
+ const base::FilePath::StringPieceType kHelperProcessExecutableNameExt =
+     FPL(".app");
+ const base::FilePath::StringPieceType kBrowserProcessExecutablePath =
+-    FPL("Chromium.app/Contents/MacOS/Chromium");
++    FPL("Nickel Browser.app/Contents/MacOS/Nickel Browser");
+ #elif BUILDFLAG(IS_ANDROID)
+ const base::FilePath::StringPieceType kHelperProcessExecutableName =
+     FPL("chrome");
+@@ -40,7 +40,7 @@ const base::FilePath::StringPieceType kBrowserProcessExecutablePath =
+ #endif
+ 
+ // The user data directory name.
+-const char kUserDataDirname[] = "Chromium";
++const char kUserDataDirname[] = "Nickel";
+ 
+ }  // namespace chrome
+ 
+diff --git a/components/version_info/version_info.cc b/components/version_info/version_info.cc
+index 1234567..abcdefg 100644
+--- a/components/version_info/version_info.cc
++++ b/components/version_info/version_info.cc
+@@ -15,9 +15,9 @@ std::string GetProductName() {
+   return "Chrome";
+ #elif BUILDFLAG(IS_IOS)
+   return "Chrome";
+-#elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  return "Chrome";
+ #else
+-  return "Chromium";
++  return "Nickel Browser";
+ #endif
+ }
+ 
+@@ -28,7 +28,7 @@ std::string GetVersionString() {
+ std::string GetUserAgent() {
+   return base::StringPrintf(
+-      "%s/%s %s",
++      "Nickel-Browser/%s %s",
+       GetProductName().c_str(),
+       GetVersionString().c_str(),
+       GetOSType().c_str());
+-- 
+2.40.0

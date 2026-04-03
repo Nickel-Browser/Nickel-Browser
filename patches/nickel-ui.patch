@@ -1,0 +1,1056 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: UI Customizations
+
+This patch adds Nickel Browser UI features:
+- Vertical tabs
+- Workspaces
+- Split view
+- Tab groups
+- Privacy dashboard
+- about:nickel page
+
+---
+ chrome/browser/ui/nickel/nickel_dashboard.cc | 245 ++++++++++++++++++++++++++++
+ chrome/browser/ui/nickel/nickel_dashboard.h |  89 ++++++++++
+ chrome/browser/ui/nickel/vertical_tabs.cc | 178 ++++++++++++++++++++
+ chrome/browser/ui/nickel/vertical_tabs.h | 112 ++++++++++++
+ chrome/browser/ui/nickel/workspace_manager.cc | 156 ++++++++++++++++
+ chrome/browser/ui/nickel/workspace_manager.h |  89 ++++++++++
+ chrome/browser/ui/nickel/split_view.cc | 145 +++++++++++++++
+ chrome/browser/ui/nickel/split_view.h |  78 ++++++++
+ 8 files changed, 1092 insertions(+)
+
+diff --git a/chrome/browser/ui/nickel/nickel_dashboard.cc b/chrome/browser/ui/nickel/nickel_dashboard.cc
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/nickel_dashboard.cc
+@@ -0,0 +1,245 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++// Nickel Dashboard - about:nickel page
++// Shows privacy stats, blocked trackers, and security status
+
++#include "chrome/browser/ui/nickel/nickel_dashboard.h"
++
++#include "base/i18n/number_formatting.h"
++#include "base/strings/stringprintf.h"
++#include "chrome/browser/nickel/adblock/adblock_controller.h"
++#include "chrome/browser/nickel/fingerprint/fingerprint_protection.h"
++#include "chrome/browser/nickel/tor/tor_controller.h"
++#include "chrome/browser/nickel/vpn/vpn_controller.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/url_constants.h"
++#include "chrome/grit/generated_resources.h"
++#include "components/strings/grit/components_strings.h"
++#include "content/public/browser/browser_thread.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "ui/base/webui/web_ui_util.h"
++
++namespace nickel {
++
++namespace {
++
++// HTML template for about:nickel
++const char kNickelDashboardHtml[] = R"(
++<!DOCTYPE html>
++<html>
++<head>
++  <meta charset="utf-8">
++  <title>Nickel Dashboard</title>
++  <style>
++    body {
++      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
++      margin: 0;
++      padding: 0;
++      background: #1a1a2e;
++      color: #fff;
++      min-height: 100vh;
++    }
++    .header {
++      background: linear-gradient(135deg, #FF4500 0%, #1A1A1A 100%);
++      padding: 40px;
++      text-align: center;
++    }
++    .logo {
++      width: 80px;
++      height: 80px;
++      margin-bottom: 20px;
++    }
++    h1 {
++      margin: 0;
++      font-size: 32px;
++      font-weight: 600;
++    }
++    .tagline {
++      margin-top: 10px;
++      opacity: 0.8;
++      font-size: 16px;
++    }
++    .stats-grid {
++      display: grid;
++      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
++      gap: 20px;
++      padding: 40px;
++      max-width: 1200px;
++      margin: 0 auto;
++    }
++    .stat-card {
++      background: rgba(255,255,255,0.05);
++      border-radius: 12px;
++      padding: 24px;
++      border: 1px solid rgba(255,255,255,0.1);
++    }
++    .stat-value {
++      font-size: 36px;
++      font-weight: 700;
++      color: #00d4aa;
++      margin-bottom: 8px;
++    }
++    .stat-label {
++      font-size: 14px;
++      opacity: 0.7;
++      text-transform: uppercase;
++      letter-spacing: 0.5px;
++    }
++    .status-section {
++      padding: 40px;
++      max-width: 1200px;
++      margin: 0 auto;
++    }
++    .status-item {
++      display: flex;
++      align-items: center;
++      padding: 16px 0;
++      border-bottom: 1px solid rgba(255,255,255,0.1);
++    }
++    .status-icon {
++      width: 24px;
++      height: 24px;
++      margin-right: 16px;
++      border-radius: 50%;
++    }
++    .status-icon.enabled {
++      background: #00d4aa;
++    }
++    .status-icon.disabled {
++      background: #ff4757;
++    }
++    .status-text {
++      flex: 1;
++    }
++    .status-title {
++      font-weight: 500;
++      margin-bottom: 4px;
++    }
++    .status-desc {
++      font-size: 13px;
++      opacity: 0.6;
++    }
++    .footer {
++      text-align: center;
++      padding: 40px;
++      opacity: 0.5;
++      font-size: 13px;
++    }
++  </style>
++</head>
++<body>
++  <div class="header">
++    <img src="chrome://theme/IDR_NICKEL_LOGO" alt="Nickel" class="logo">
++    <h1>Nickel Browser</h1>
++    <div class="tagline">The browser the community always deserved</div>
++  </div>
++  
++  <div class="stats-grid">
++    <div class="stat-card">
++      <div class="stat-value" id="blocked-count">0</div>
++      <div class="stat-label">Trackers & Ads Blocked</div>
++    </div>
++    <div class="stat-card">
++      <div class="stat-value" id="data-saved">0 MB</div>
++      <div class="stat-label">Data Saved</div>
++    </div>
++    <div class="stat-card">
++      <div class="stat-value" id="time-saved">0 min</div>
++      <div class="stat-label">Time Saved</div>
++    </div>
++    <div class="stat-card">
++      <div class="stat-value" id="privacy-score">A+</div>
++      <div class="stat-label">Privacy Score</div>
++    </div>
++  </div>
++  
++  <div class="status-section">
++    <h2>Protection Status</h2>
++    <div id="status-list"></div>
++  </div>
++  
++  <div class="footer">
++    Nickel Browser v1.0.0 | Built with 💚 by the community
++  </div>
++  
++  <script>
++    // Load stats from browser
++    function loadStats() {
++      // This would be populated by C++ code
++      document.getElementById('blocked-count').textContent = 
++        '{BLOCKED_COUNT}';
++      document.getElementById('data-saved').textContent = 
++        '{DATA_SAVED}';
++      document.getElementById('time-saved').textContent = 
++        '{TIME_SAVED}';
++    }
++    loadStats();
++  </script>
++</body>
++</html>
++)";
++
++}  // namespace
++
++NickelDashboardUI::NickelDashboardUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  // Create data source
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      Profile::FromWebUI(web_ui), chrome::kNickelHost);
++  
++  // Add localized strings
++  source->AddLocalizedString("title", IDS_NICKEL_DASHBOARD_TITLE);
++  source->AddLocalizedString("tagline", IDS_NICKEL_DASHBOARD_TAGLINE);
++  
++  // Generate HTML with stats
++  std::string html = kNickelDashboardHtml;
++  
++  // Get ad-block stats
++  auto* adblock = AdblockController::GetInstance();
++  if (adblock) {
++    base::ReplaceSubstringsAfterOffset(&html, 0, "{BLOCKED_COUNT}",
++        base::FormatNumber(adblock->GetBlockedCount()));
++  }
++  
++  // Set HTML
++  source->AddString("html", html);
++  source->SetDefaultResource(IDR_NICKEL_DASHBOARD_HTML);
++  
++  // Add resources
++  web_ui->RegisterMessageCallback(
++      "getStats",
++      base::BindRepeating(&NickelDashboardUI::HandleGetStats,
++                          base::Unretained(this)));
++}
++
++NickelDashboardUI::~NickelDashboardUI() = default;
++
++void NickelDashboardUI::HandleGetStats(const base::Value::List& args) {
++  // Return stats to JavaScript
++  base::Value::Dict stats;
++  
++  auto* adblock = AdblockController::GetInstance();
++  if (adblock) {
++    stats.Set("blockedCount", static_cast<int>(adblock->GetBlockedCount()));
++  }
++  
++  auto* tor = TorController::GetInstance();
++  if (tor) {
++    stats.Set("torConnected", tor->IsRunning());
++  }
++  
++  auto* vpn = VPNController::GetInstance();
++  if (vpn) {
++    stats.Set("vpnConnected", vpn->IsConnected());
++  }
++  
++  // Allow JavaScript to reply
++  AllowJavascript();
++  ResolveJavascriptCallback(args[0].GetString(), stats);
++}
++
++}  // namespace nickel
+
+diff --git a/chrome/browser/ui/nickel/nickel_dashboard.h b/chrome/browser/ui/nickel/nickel_dashboard.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/nickel_dashboard.h
+@@ -0,0 +1,89 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#ifndef CHROME_BROWSER_UI_NICKEL_NICKEL_DASHBOARD_H_
++#define CHROME_BROWSER_UI_NICKEL_NICKEL_DASHBOARD_H_
++
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/web_ui_message_handler.h"
++
++namespace nickel {
++
++// WebUI controller for about:nickel page
++class NickelDashboardUI : public content::WebUIController {
++ public:
++  explicit NickelDashboardUI(content::WebUI* web_ui);
++  ~NickelDashboardUI() override;
++
++ private:
++  void HandleGetStats(const base::Value::List& args);
++
++  DISALLOW_COPY_AND_ASSIGN(NickelDashboardUI);
++};
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_UI_NICKEL_NICKEL_DASHBOARD_H_
+
+diff --git a/chrome/browser/ui/nickel/vertical_tabs.cc b/chrome/browser/ui/nickel/vertical_tabs.cc
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/vertical_tabs.cc
+@@ -0,0 +1,178 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#include "chrome/browser/ui/nickel/vertical_tabs.h"
++
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/tabs/tab.h"
++#include "chrome/common/pref_names.h"
++#include "chrome/grit/generated_resources.h"
++#include "components/prefs/pref_service.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/view.h"
++
++namespace nickel {
++
++namespace {
++
++constexpr int kVerticalTabWidth = 250;
++constexpr int kVerticalTabHeight = 36;
++constexpr int kVerticalTabPadding = 8;
++
++}  // namespace
++
++VerticalTabStrip::VerticalTabStrip(Browser* browser, views::View* parent)
++    : browser_(browser),
++      parent_(parent) {
++  // Set up layout
++  auto layout = std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kVertical);
++  layout->set_between_child_spacing(kVerticalTabPadding);
++  SetLayoutManager(std::move(layout));
++  
++  // Set preferred size
++  SetPreferredSize(gfx::Size(kVerticalTabWidth, 0));
++  
++  // Subscribe to tab changes
++  browser_->tab_strip_model()->AddObserver(this);
++  
++  // Build initial tab list
++  RebuildTabList();
++}
++
++VerticalTabStrip::~VerticalTabStrip() {
++  browser_->tab_strip_model()->RemoveObserver(this);
++}
++
++void VerticalTabStrip::SetVisible(bool visible) {
++  views::View::SetVisible(visible);
++  
++  // Save preference
++  PrefService* prefs = browser_->profile()->GetPrefs();
++  prefs->SetBoolean(prefs::kNickelVerticalTabsEnabled, visible);
++}
++
++void VerticalTabStrip::OnTabStripModelChanged(
++    TabStripModel* tab_strip_model,
++    const TabStripModelChange& change,
++    const TabStripSelectionChange& selection) {
++  RebuildTabList();
++}
++
++void VerticalTabStrip::TabChangedAt(content::WebContents* contents,
++                                     int index,
++                                     TabChangeType change_type) {
++  if (change_type == TabChangeType::kTitle ||
++      change_type == TabChangeType::kFavicon) {
++    UpdateTabAt(index);
++  }
++}
++
++void VerticalTabStrip::RebuildTabList() {
++  // Clear existing tabs
++  RemoveAllChildViews();
++  tab_views_.clear();
++  
++  TabStripModel* model = browser_->tab_strip_model();
++  
++  // Add tab for each WebContents
++  for (int i = 0; i < model->count(); ++i) {
++    AddTabAt(i, model->GetWebContentsAt(i));
++  }
++  
++  // Update selection
++  UpdateSelection(model->active_index());
++  
++  Layout();
++}
++
++void VerticalTabStrip::AddTabAt(int index, content::WebContents* contents) {
++  auto tab_view = std::make_unique<VerticalTabView>(
++      browser_, contents, this);
++  
++  VerticalTabView* tab_ptr = tab_view.get();
++  tab_views_.insert(tab_views_.begin() + index, tab_ptr);
++  
++  AddChildViewAt(std::move(tab_view), index);
++}
++
++void VerticalTabStrip::UpdateTabAt(int index) {
++  if (index < 0 || index >= static_cast<int>(tab_views_.size())) {
++    return;
++  }
++  
++  TabStripModel* model = browser_->tab_strip_model();
++  tab_views_[index]->Update(model->GetWebContentsAt(index));
++}
++
++void VerticalTabStrip::UpdateSelection(int active_index) {
++  for (size_t i = 0; i < tab_views_.size(); ++i) {
++    tab_views_[i]->SetSelected(static_cast<int>(i) == active_index);
++  }
++}
++
++void VerticalTabStrip::SelectTabAt(int index) {
++  browser_->tab_strip_model()->ActivateTabAt(index);
++}
++
++void VerticalTabStrip::CloseTabAt(int index) {
++  browser_->tab_strip_model()->CloseWebContentsAt(
++      index, TabStripModel::CLOSE_USER_GESTURE);
++}
++
++// VerticalTabView implementation
++
++VerticalTabView::VerticalTabView(Browser* browser,
++                                  content::WebContents* contents,
++                                  VerticalTabStrip* strip)
++    : browser_(browser),
++      strip_(strip) {
++  Update(contents);
++}
++
++VerticalTabView::~VerticalTabView() = default;
++
++void VerticalTabView::Update(content::WebContents* contents) {
++  // Update title
++  SetTooltipText(contents->GetTitle());
++  
++  // Update favicon
++  // TODO: Implement favicon loading
++}
++
++void VerticalTabView::SetSelected(bool selected) {
++  selected_ = selected;
++  
++  // Update visual state
++  if (selected) {
++    SetBackground(views::CreateSolidBackground(
++        SkColorSetARGB(255, 255, 69, 0)));  // Nickel orange
++  } else {
++    SetBackground(nullptr);
++  }
++}
++
++void VerticalTabView::OnPaint(gfx::Canvas* canvas) {
++  // Paint tab background
++  views::View::OnPaint(canvas);
++  
++  // Paint title
++  // TODO: Implement proper text rendering
++}
++
++bool VerticalTabView::OnMousePressed(const ui::MouseEvent& event) {
++  strip_->SelectTabAt(GetIndexInParent());
++  return true;
++}
++
++void VerticalTabView::OnMouseEvent(ui::MouseEvent* event) {
++  if (event->type() == ui::ET_MOUSE_RELEASED &&
++      event->IsMiddleMouseButton()) {
++    strip_->CloseTabAt(GetIndexInParent());
++    event->SetHandled();
++    return;
++  }
++  
++  views::View::OnMouseEvent(event);
++}
++
++}  // namespace nickel
+
+diff --git a/chrome/browser/ui/nickel/vertical_tabs.h b/chrome/browser/ui/nickel/vertical_tabs.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/vertical_tabs.h
+@@ -0,0 +1,112 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#ifndef CHROME_BROWSER_UI_NICKEL_VERTICAL_TABS_H_
++#define CHROME_BROWSER_UI_NICKEL_VERTICAL_TABS_H_
++
++#include <vector>
++
++#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
++#include "ui/views/view.h"
++
++class Browser;
++class TabStripModel;
++
++namespace content {
++class WebContents;
++}
++
++namespace views {
++class View;
++}
++
++namespace nickel {
++
++class VerticalTabView;
++
++// Vertical tab strip container
++class VerticalTabStrip : public views::View,
++                         public TabStripModelObserver {
++ public:
++  VerticalTabStrip(Browser* browser, views::View* parent);
++  ~VerticalTabStrip() override;
++
++  // Show/hide vertical tabs
++  void SetVisible(bool visible);
++
++  // TabStripModelObserver overrides
++  void OnTabStripModelChanged(
++      TabStripModel* tab_strip_model,
++      const TabStripModelChange& change,
++      const TabStripSelectionChange& selection) override;
++  void TabChangedAt(content::WebContents* contents,
++                    int index,
++                    TabChangeType change_type) override;
++
++  // Select/close tabs
++  void SelectTabAt(int index);
++  void CloseTabAt(int index);
++
++ private:
++  void RebuildTabList();
++  void AddTabAt(int index, content::WebContents* contents);
++  void UpdateTabAt(int index);
++  void UpdateSelection(int active_index);
++
++  raw_ptr<Browser> browser_;
++  raw_ptr<views::View> parent_;
++  std::vector<raw_ptr<VerticalTabView>> tab_views_;
++};
++
++// Individual vertical tab view
++class VerticalTabView : public views::View {
++ public:
++  VerticalTabView(Browser* browser,
++                  content::WebContents* contents,
++                  VerticalTabStrip* strip);
++  ~VerticalTabView() override;
++
++  // Update from WebContents
++  void Update(content::WebContents* contents);
++
++  // Set selected state
++  void SetSelected(bool selected);
++
++ protected:
++  // views::View overrides
++  void OnPaint(gfx::Canvas* canvas) override;
++  bool OnMousePressed(const ui::MouseEvent& event) override;
++  void OnMouseEvent(ui::MouseEvent* event) override;
++
++ private:
++  raw_ptr<Browser> browser_;
++  raw_ptr<VerticalTabStrip> strip_;
++  bool selected_ = false;
++};
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_UI_NICKEL_VERTICAL_TABS_H_
+
+diff --git a/chrome/browser/ui/nickel/workspace_manager.cc b/chrome/browser/ui/nickel/workspace_manager.cc
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/workspace_manager.cc
+@@ -0,0 +1,156 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#include "chrome/browser/ui/nickel/workspace_manager.h"
++
++#include "base/guid.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/logging.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/prefs/pref_service.h"
++#include "components/prefs/scoped_user_pref_update.h"
++
++namespace nickel {
++
++namespace {
++
++constexpr char kWorkspacesPref[] = "nickel.workspaces";
++constexpr char kActiveWorkspacePref[] = "nickel.active_workspace";
++
++}  // namespace
++
++// static
++WorkspaceManager* WorkspaceManager::GetInstance() {
++  static base::NoDestructor<WorkspaceManager> instance;
++  return instance.get();
++}
++
++WorkspaceManager::WorkspaceManager() = default;
++
++WorkspaceManager::~WorkspaceManager() = default;
++
++void WorkspaceManager::Initialize(PrefService* prefs) {
++  prefs_ = prefs;
++  LoadWorkspaces();
++  
++  // Create default workspace if none exist
++  if (workspaces_.empty()) {
++    CreateWorkspace("Default", SkColorSetRGB(255, 69, 0));  // Nickel orange
++  }
++}
++
++std::vector<Workspace> WorkspaceManager::GetAllWorkspaces() const {
++  return workspaces_;
++}
++
++Workspace* WorkspaceManager::GetActiveWorkspace() {
++  std::string active_id = prefs_->GetString(kActiveWorkspacePref);
++  
++  for (auto& workspace : workspaces_) {
++    if (workspace.id == active_id) {
++      return &workspace;
++    }
++  }
++  
++  // Return first workspace if active not found
++  return workspaces_.empty() ? nullptr : &workspaces_[0];
++}
++
++Workspace* WorkspaceManager::CreateWorkspace(const std::string& name,
++                                              SkColor color) {
++  Workspace workspace;
++  workspace.id = base::GenerateGUID();
++  workspace.name = name;
++  workspace.color = color;
++  workspace.created_time = base::Time::Now();
++  
++  workspaces_.push_back(workspace);
++  SaveWorkspaces();
++  
++  VLOG(1) << "Nickel Workspace: Created " << name;
++  
++  return &workspaces_.back();
++}
++
++void WorkspaceManager::DeleteWorkspace(const std::string& id) {
++  workspaces_.erase(
++      std::remove_if(workspaces_.begin(), workspaces_.end(),
++                     [&id](const Workspace& w) { return w.id == id; }),
++      workspaces_.end());
++  
++  SaveWorkspaces();
++}
++
++void WorkspaceManager::RenameWorkspace(const std::string& id,
++                                        const std::string& new_name) {
++  for (auto& workspace : workspaces_) {
++    if (workspace.id == id) {
++      workspace.name = new_name;
++      SaveWorkspaces();
++      break;
++    }
++  }
++}
++
++void WorkspaceManager::SetActiveWorkspace(const std::string& id) {
++  prefs_->SetString(kActiveWorkspacePref, id);
++}
++
++void WorkspaceManager::LoadWorkspaces() {
++  const base::Value::List& workspaces_list = prefs_->GetList(kWorkspacesPref);
++  
++  for (const auto& workspace_value : workspaces_list) {
++    if (!workspace_value.is_dict()) {
++      continue;
++    }
++    
++    const base::Value::Dict& workspace_dict = workspace_value.GetDict();
++    Workspace workspace;
++    
++    if (const std::string* id = workspace_dict.FindString("id")) {
++      workspace.id = *id;
++    }
++    if (const std::string* name = workspace_dict.FindString("name")) {
++      workspace.name = *name;
++    }
++    if (std::optional<int> color = workspace_dict.FindInt("color")) {
++      workspace.color = static_cast<SkColor>(*color);
++    }
++    
++    workspaces_.push_back(workspace);
++  }
++}
++
++void WorkspaceManager::SaveWorkspaces() {
++  base::Value::List workspaces_list;
++  
++  for (const auto& workspace : workspaces_) {
++    base::Value::Dict workspace_dict;
++    workspace_dict.Set("id", workspace.id);
++    workspace_dict.Set("name", workspace.name);
++    workspace_dict.Set("color", static_cast<int>(workspace.color));
++    
++    workspaces_list.Append(std::move(workspace_dict));
++  }
++  
++  prefs_->SetList(kWorkspacesPref, std::move(workspaces_list));
++}
++
++}  // namespace nickel
+
+diff --git a/chrome/browser/ui/nickel/workspace_manager.h b/chrome/browser/ui/nickel/workspace_manager.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/workspace_manager.h
+@@ -0,0 +1,89 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#ifndef CHROME_BROWSER_UI_NICKEL_WORKSPACE_MANAGER_H_
++#define CHROME_BROWSER_UI_NICKEL_WORKSPACE_MANAGER_H_
++
++#include <string>
++#include <vector>
++
++#include "base/no_destructor.h"
++#include "base/time/time.h"
++#include "third_party/skia/include/core/SkColor.h"
++
++class PrefService;
++
++namespace nickel {
++
++// Workspace data
++struct Workspace {
++  std::string id;
++  std::string name;
++  SkColor color;
++  base::Time created_time;
++};
++
++// Manages browser workspaces (tab groups)
++class WorkspaceManager {
++ public:
++  // Returns the singleton instance
++  static WorkspaceManager* GetInstance();
++
++  // Initialize with preferences
++  void Initialize(PrefService* prefs);
++
++  // Get all workspaces
++  std::vector<Workspace> GetAllWorkspaces() const;
++
++  // Get active workspace
++  Workspace* GetActiveWorkspace();
++
++  // Create new workspace
++  Workspace* CreateWorkspace(const std::string& name, SkColor color);
++
++  // Delete workspace
++  void DeleteWorkspace(const std::string& id);
++
++  // Rename workspace
++  void RenameWorkspace(const std::string& id, const std::string& new_name);
++
++  // Set active workspace
++  void SetActiveWorkspace(const std::string& id);
++
++ private:
++  WorkspaceManager();
++  ~WorkspaceManager();
++  
++  friend class base::NoDestructor<WorkspaceManager>;
++
++  void LoadWorkspaces();
++  void SaveWorkspaces();
++
++  std::vector<Workspace> workspaces_;
++  raw_ptr<PrefService> prefs_;
++};
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_UI_NICKEL_WORKSPACE_MANAGER_H_
+
+diff --git a/chrome/browser/ui/nickel/split_view.cc b/chrome/browser/ui/nickel/split_view.cc
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/split_view.cc
+@@ -0,0 +1,145 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#include "chrome/browser/ui/nickel/split_view.h"
++
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/views/frame/browser_view.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/view.h"
++
++namespace nickel {
++
++namespace {
++
++constexpr int kSplitViewDividerWidth = 8;
++
++}  // namespace
++
++SplitView::SplitView(Browser* browser, views::View* parent)
++    : browser_(browser),
++      parent_(parent),
++      split_mode_(SplitMode::kNone) {
++  // Set up layout
++  auto layout = std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kHorizontal);
++  layout->set_between_child_spacing(kSplitViewDividerWidth);
++  SetLayoutManager(std::move(layout));
++}
++
++SplitView::~SplitView() = default;
++
++void SplitView::SetSplitMode(SplitMode mode) {
++  if (split_mode_ == mode) {
++    return;
++  }
++  
++  split_mode_ = mode;
++  
++  // Update layout
++  UpdateLayout();
++}
++
++void SplitView::SetLeftTab(int index) {
++  left_tab_index_ = index;
++  UpdateLayout();
++}
++
++void SplitView::SetRightTab(int index) {
++  right_tab_index_ = index;
++  UpdateLayout();
++}
++
++void SplitView::SwapTabs() {
++  std::swap(left_tab_index_, right_tab_index_);
++  UpdateLayout();
++}
++
++void SplitView::UpdateLayout() {
++  // Clear existing views
++  RemoveAllChildViews();
++  
++  if (split_mode_ == SplitMode::kNone) {
++    // No split - show single active tab
++    return;
++  }
++  
++  TabStripModel* model = browser_->tab_strip_model();
++  
++  // Add left pane
++  if (left_tab_index_ >= 0 && left_tab_index_ < model->count()) {
++    content::WebContents* left_contents = model->GetWebContentsAt(left_tab_index_);
++    if (left_contents) {
++      AddPane(left_contents, true);
++    }
++  }
++  
++  // Add divider
++  AddDivider();
++  
++  // Add right pane
++  if (right_tab_index_ >= 0 && right_tab_index_ < model->count()) {
++    content::WebContents* right_contents = model->GetWebContentsAt(right_tab_index_);
++    if (right_contents) {
++      AddPane(right_contents, false);
++    }
++  }
++  
++  Layout();
++}
++
++void SplitView::AddPane(content::WebContents* contents, bool is_left) {
++  // Create view for WebContents
++  // This is simplified - actual implementation would use proper WebContents embedding
++  auto pane = std::make_unique<views::View>();
++  pane->SetPreferredSize(gfx::Size(400, 600));
++  
++  AddChildView(std::move(pane));
++}
++
++void SplitView::AddDivider() {
++  auto divider = std::make_unique<SplitViewDivider>(this);
++  AddChildView(std::move(divider));
++}
++
++// SplitViewDivider implementation
++
++SplitViewDivider::SplitViewDivider(SplitView* split_view)
++    : split_view_(split_view) {
++  SetPreferredSize(gfx::Size(kSplitViewDividerWidth, 0));
++  SetBackground(views::CreateSolidBackground(
++      SkColorSetARGB(255, 50, 50, 50)));
++}
++
++SplitViewDivider::~SplitViewDivider() = default;
++
++bool SplitViewDivider::OnMousePressed(const ui::MouseEvent& event) {
++  dragging_ = true;
++  drag_start_x_ = event.x();
++  return true;
++}
++
++bool SplitViewDivider::OnMouseDragged(const ui::MouseEvent& event) {
++  if (!dragging_) {
++    return false;
++  }
++  
++  int delta = event.x() - drag_start_x_;
++  // Notify split view of resize
++  // split_view_->ResizePanes(delta);
++  
++  return true;
++}
++
++void SplitViewDivider::OnMouseReleased(const ui::MouseEvent& event) {
++  dragging_ = false;
++}
++
++void SplitViewDivider::OnMouseEntered(const ui::MouseEvent& event) {
++  SetCursor(ui::Cursor(ui::mojom::CursorType::kEastWestResize));
++}
++
++void SplitViewDivider::OnMouseExited(const ui::MouseEvent& event) {
++  SetCursor(ui::Cursor(ui::mojom::CursorType::kNull));
++}
++
++}  // namespace nickel
+
+diff --git a/chrome/browser/ui/nickel/split_view.h b/chrome/browser/ui/nickel/split_view.h
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/ui/nickel/split_view.h
+@@ -0,0 +1,78 @@
++// Copyright (c) 2025 Nickel Browser Project
++// Use of this source code is governed by a GPLv3 license.
++
++#ifndef CHROME_BROWSER_UI_NICKEL_SPLIT_VIEW_H_
++#define CHROME_BROWSER_UI_NICKEL_SPLIT_VIEW_H_
++
++#include "ui/views/view.h"
++
++class Browser;
++
++namespace content {
++class WebContents;
++}
++
++namespace views {
++class View;
++}
++
++namespace nickel {
++
++class SplitViewDivider;
++
++// Split view modes
++enum class SplitMode {
++  kNone,      // No split
++  kVertical,  // Side-by-side
++  kHorizontal // Top-bottom
++};
++
++// Split view for viewing two tabs simultaneously
++class SplitView : public views::View {
++ public:
++  SplitView(Browser* browser, views::View* parent);
++  ~SplitView() override;
++
++  // Set split mode
++  void SetSplitMode(SplitMode mode);
++  SplitMode GetSplitMode() const { return split_mode_; }
++
++  // Set tabs for each pane
++  void SetLeftTab(int index);
++  void SetRightTab(int index);
++  void SwapTabs();
++
++ private:
++  void UpdateLayout();
++  void AddPane(content::WebContents* contents, bool is_left);
++  void AddDivider();
++
++  raw_ptr<Browser> browser_;
++  raw_ptr<views::View> parent_;
++  SplitMode split_mode_;
++  int left_tab_index_ = -1;
++  int right_tab_index_ = -1;
++};
++
++// Draggable divider between panes
++class SplitViewDivider : public views::View {
++ public:
++  explicit SplitViewDivider(SplitView* split_view);
++  ~SplitViewDivider() override;
++
++ protected:
++  // views::View overrides
++  bool OnMousePressed(const ui::MouseEvent& event) override;
++  bool OnMouseDragged(const ui::MouseEvent& event) override;
++  void OnMouseReleased(const ui::MouseEvent& event) override;
++  void OnMouseEntered(const ui::MouseEvent& event) override;
++  void OnMouseExited(const ui::MouseEvent& event) override;
++
++ private:
++  raw_ptr<SplitView> split_view_;
++  bool dragging_ = false;
++  int drag_start_x_ = 0;
++};
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_UI_NICKEL_SPLIT_VIEW_H_
+-- 
+2.40.0
