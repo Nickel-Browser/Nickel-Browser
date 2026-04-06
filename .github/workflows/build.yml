@@ -1,0 +1,28 @@
+# .github/workflows/build.yml
+name: Nickel Build
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest-16-core
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt update && sudo apt install -y ninja-build pkg-config libglib2.0-dev libgtk-3-dev libpulse-dev libasound2-dev libdbus-1-dev libx11-dev libxfixes-dev libxss-dev libxtst-dev libatk1.0-dev libcups2-dev libdrm-dev mesa-common-dev libgbm-dev
+      - name: Get depot_tools
+        run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools && echo "$HOME/depot_tools" >> $GITHUB_PATH
+      - name: Fetch Chromium
+        run: mkdir -p ~/nickel-src && cd ~/nickel-src && fetch --nohooks chromium && cd src && gclient sync -D && gclient runhooks
+      - name: Apply Nickel patches
+        run: |
+          SRC_DIR=~/nickel-src/src bash scripts/apply_patches.sh
+          SRC_DIR=~/nickel-src/src bash scripts/degoogle_chromium.sh
+          SRC_DIR=~/nickel-src/src bash scripts/apply_nickel_branding.sh
+      - name: Build
+        working-directory: ~/nickel-src/src
+        run: gn gen out/Nickel --args='is_official_build=true is_debug=false symbol_level=0 enable_nacl=false proprietary_codecs=true ffmpeg_branding="Chrome" enable_reporting=false google_api_key=""' && autoninja -C out/Nickel chrome
+      - name: Package AppImage
+        run: SRC_DIR=~/nickel-src/src bash scripts/build_appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NickelBrowser-Linux
+          path: ~/nickel-src/src/out/Nickel/*.AppImage
