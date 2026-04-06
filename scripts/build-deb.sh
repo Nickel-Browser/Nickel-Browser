@@ -32,7 +32,11 @@ Terminal=false
 EOF
 
 # Copy icon
-cp src/nickel/branding/icon_256.png "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png" 2>/dev/null || true
+if [ -f "nickel/branding/product_logo_256.png" ]; then
+    cp nickel/branding/product_logo_256.png "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png"
+elif [ -f "src/nickel/branding/product_logo_256.png" ]; then
+    cp src/nickel/branding/product_logo_256.png "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png"
+fi
 
 # Create symlink
 ln -sf /opt/nickel-browser/chrome "$PACKAGE_DIR/usr/bin/nickel-browser"

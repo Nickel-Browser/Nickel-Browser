@@ -529,7 +529,7 @@ jobs:
       
       - name: 🏷️ Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.NICKEL_VERSION }}+chromium.${{ needs.check-chromium-updates.outputs.new_version }}
           name: 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }} (Chromium ${{ needs.check-chromium-updates.outputs.new_version }})

@@ -48,19 +48,28 @@ cat > "$CONTENTS_DIR/Info.plist" << EOF
 EOF
 
 # Copy icon if exists
-cp src/nickel/branding/icon_256.png "$CONTENTS_DIR/Resources/" 2>/dev/null || true
+if [ -f "src/nickel/branding/product_logo_256.png" ]; then
+    cp src/nickel/branding/product_logo_256.png "$CONTENTS_DIR/Resources/icon.png"
+    ICON_PATH="src/nickel/branding/product_logo_256.png"
+else
+    ICON_PATH=""
+fi
 
 # Create DMG
-create-dmg \
-    --volname "Nickel Browser" \
-    --volicon "src/nickel/branding/icon_256.png" \
-    --window-pos 200 120 \
-    --window-size 600 400 \
-    --icon-size 100 \
-    --app-drop-link 450 185 \
-    --icon "$APP_NAME" 150 185 \
-    "NickelBrowser-${VERSION}.dmg" \
-    "$APP_DIR" 2>/dev/null || echo "Creating DMG with fallback method"
+if [ -n "$ICON_PATH" ] && command -v create-dmg &> /dev/null; then
+    create-dmg \
+        --volname "Nickel Browser" \
+        --volicon "$ICON_PATH" \
+        --window-pos 200 120 \
+        --window-size 600 400 \
+        --icon-size 100 \
+        --app-drop-link 450 185 \
+        --icon "$APP_NAME" 150 185 \
+        "NickelBrowser-${VERSION}.dmg" \
+        "$APP_DIR" 2>/dev/null || echo "Creating DMG with fallback method"
+else
+    echo "Creating DMG with fallback method"
+fi
 
 # Fallback if create-dmg not available
 if [ ! -f "NickelBrowser-${VERSION}.dmg" ]; then

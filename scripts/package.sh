@@ -201,7 +201,7 @@ echo ""
 for pkg in "$NICKEL_DIR/packages"/*; do
     if [ -f "$pkg" ]; then
         size=$(du -h "$pkg" | cut -f1)
-        echo "  📄 $(basename $pkg) ($size)"
+        echo "  📄 $(basename "$pkg") ($size)"
     fi
 done
 

@@ -99,7 +99,7 @@ jobs:
         run: |
           mkdir -p public
           cp -r web/* public/
-          cp src/nickel/branding/Nickel.png public/logo.png
+          cp src/nickel/branding/Nickel.png public/logo.png 2>/dev/null || echo "Logo not found, using default"
       - name: Upload Website Artifact
         uses: actions/upload-pages-artifact@v3
         with:

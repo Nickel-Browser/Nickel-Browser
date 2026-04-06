@@ -17,7 +17,9 @@ mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
 # Copy files
 cp -r "$BUILD_DIR"/* AppDir/usr/bin/
-cp src/nickel/branding/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/nickel-browser.png 2>/dev/null || true
+if [ -f "src/nickel/branding/product_logo_256.png" ]; then
+    cp src/nickel/branding/product_logo_256.png AppDir/usr/share/icons/hicolor/256x256/apps/nickel-browser.png
+fi
 
 # Create desktop entry
 cat > AppDir/nickel-browser.desktop << 'EOF'

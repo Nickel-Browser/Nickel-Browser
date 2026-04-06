@@ -27,8 +27,9 @@ SetCompressor lzma
 ; MUI Settings
 !include "MUI.nsh"
 !define MUI_ABORTWARNING
-!define MUI_ICON "src/nickel/branding/icon.ico"
-!define MUI_UNICON "src/nickel/branding/icon.ico"
+; Icon paths - will be set if available
+; !define MUI_ICON "src/nickel/branding/icon.ico"
+; !define MUI_UNICON "src/nickel/branding/icon.ico"
 
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME

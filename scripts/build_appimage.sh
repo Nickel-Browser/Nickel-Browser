@@ -32,8 +32,8 @@ cp out/Nickel/v8_context_snapshot.bin "$APPDIR/usr/bin/" 2>/dev/null || true
 cp out/Nickel/lib*.so "$APPDIR/usr/bin/" 2>/dev/null || true
 
 echo "🎨 Copying branding..."
-cp "$SRC_DIR/../src/nickel/branding/Nickel.png" "$APPDIR/usr/share/icons/hicolor/128x128/apps/nickel.png"
-cp "$SRC_DIR/../src/nickel/branding/Nickel.png" "$APPDIR/nickel.png"
+cp "$SRC_DIR/nickel/branding/Nickel.png" "$APPDIR/usr/share/icons/hicolor/128x128/apps/nickel.png"
+cp "$SRC_DIR/nickel/branding/Nickel.png" "$APPDIR/nickel.png"
 
 echo "📝 Creating desktop entry..."
 cat > "$APPDIR/nickel-browser.desktop" << 'EOF'

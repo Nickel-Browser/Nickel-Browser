@@ -55,7 +55,7 @@ if [ -d "$UNGOOGLED_DIR" ]; then
         echo "🔧 Applying ungoogled patches..."
         for patch in "$UNGOOGLED_DIR/patches"/*.patch; do
             if [ -f "$patch" ]; then
-                echo "  Applying: $(basename $patch)"
+                echo "  Applying: $(basename "$patch")"
                 git apply "$patch" || echo "    ⚠️  Skipped (may already be applied)"
             fi
         done

@@ -64,7 +64,7 @@ echo ""
 
 read -p "Proceed with swap creation? (Y/n) " -n 1 -r
 echo
-if [[ ! $REPLY =~ ^[Yy]$ ]] && [ ! -z "$REPLY" ]; then
+if [[ ! $REPLY =~ ^[Yy]$ ]] && [ -n "$REPLY" ]; then
     echo "Cancelled."
     exit 0
 fi
@@ -80,9 +80,7 @@ fi
 echo "📦 Creating ${SWAP_SIZE_GB}GB swap file..."
 echo "   This may take a few minutes..."
 
-sudo fallocate -l ${SWAP_SIZE_GB}G /swapfile
-
-if [ $? -ne 0 ]; then
+if ! sudo fallocate -l ${SWAP_SIZE_GB}G /swapfile; then
     echo "⚠️  fallocate failed, trying dd (slower)..."
     sudo dd if=/dev/zero of=/swapfile bs=1G count=$SWAP_SIZE_GB status=progress
 fi
