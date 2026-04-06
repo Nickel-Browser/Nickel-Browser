@@ -8,9 +8,14 @@ echo "🪙 Nickel Browser - Package Script"
 echo "==================================="
 echo ""
 
-NICKEL_DIR="$HOME/nickel-build"
-SRC_DIR="$NICKEL_DIR/src"
-VERSION="1.0.0"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
+
+VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
 
 # Check if built
 if [ ! -f "$SRC_DIR/out/Nickel/chrome" ]; then
@@ -127,12 +132,13 @@ Exec=/opt/nickel-browser/chrome --tor
 EOF
 
 # Copy icons
-if [ -d "nickel/branding" ]; then
-    cp nickel/branding/product_logo_16.png nickel-deb/usr/share/icons/hicolor/16x16/apps/nickel-browser.png 2>/dev/null || true
-    cp nickel/branding/product_logo_32.png nickel-deb/usr/share/icons/hicolor/32x32/apps/nickel-browser.png 2>/dev/null || true
-    cp nickel/branding/product_logo_48.png nickel-deb/usr/share/icons/hicolor/48x48/apps/nickel-browser.png 2>/dev/null || true
-    cp nickel/branding/product_logo_128.png nickel-deb/usr/share/icons/hicolor/128x128/apps/nickel-browser.png 2>/dev/null || true
-    cp nickel/branding/product_logo_256.png nickel-deb/usr/share/icons/hicolor/256x256/apps/nickel-browser.png 2>/dev/null || true
+BRANDING_DIR="$NICKEL_DIR/src/nickel/branding"
+if [ -d "$BRANDING_DIR" ]; then
+    cp "$BRANDING_DIR/product_logo_16.png" nickel-deb/usr/share/icons/hicolor/16x16/apps/nickel-browser.png 2>/dev/null || true
+    cp "$BRANDING_DIR/product_logo_32.png" nickel-deb/usr/share/icons/hicolor/32x32/apps/nickel-browser.png 2>/dev/null || true
+    cp "$BRANDING_DIR/product_logo_48.png" nickel-deb/usr/share/icons/hicolor/48x48/apps/nickel-browser.png 2>/dev/null || true
+    cp "$BRANDING_DIR/product_logo_128.png" nickel-deb/usr/share/icons/hicolor/128x128/apps/nickel-browser.png 2>/dev/null || true
+    cp "$BRANDING_DIR/product_logo_256.png" nickel-deb/usr/share/icons/hicolor/256x256/apps/nickel-browser.png 2>/dev/null || true
 fi
 
 # Build .deb package
@@ -165,8 +171,8 @@ Categories=Network;WebBrowser;
 EOF
     
     # Copy icon
-    if [ -f "nickel/branding/product_logo_256.png" ]; then
-        cp nickel/branding/product_logo_256.png nickel-appimage/AppDir/nickel-browser.png
+    if [ -f "$BRANDING_DIR/product_logo_256.png" ]; then
+        cp "$BRANDING_DIR/product_logo_256.png" nickel-appimage/AppDir/nickel-browser.png
     fi
     
     # Create AppRun
