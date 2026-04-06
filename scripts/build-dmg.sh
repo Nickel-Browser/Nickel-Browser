@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
 BUILD_DIR="${BUILD_DIR:-out/Nickel}"
 
@@ -48,12 +53,12 @@ cat > "$CONTENTS_DIR/Info.plist" << EOF
 EOF
 
 # Copy icon if exists
-cp src/nickel/branding/product_logo_256.png "$CONTENTS_DIR/Resources/" 2>/dev/null || true
+cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$CONTENTS_DIR/Resources/" 2>/dev/null || true
 
 # Create DMG
 create-dmg \
     --volname "Nickel Browser" \
-    --volicon "src/nickel/branding/product_logo_256.png" \
+    --volicon "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" \
     --window-pos 200 120 \
     --window-size 600 400 \
     --icon-size 100 \

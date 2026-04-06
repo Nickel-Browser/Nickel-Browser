@@ -8,8 +8,15 @@ echo "🪙 Nickel Browser - Build Script"
 echo "================================="
 echo ""
 
-NICKEL_DIR="$HOME/nickel-build"
-SRC_DIR="$NICKEL_DIR/src"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
+
+echo "📍 NICKEL_DIR: $NICKEL_DIR"
+echo "📍 SRC_DIR: $SRC_DIR"
 
 # Check if source exists
 if [ ! -d "$SRC_DIR" ]; then
@@ -21,17 +28,14 @@ fi
 cd "$SRC_DIR"
 
 # Check for patches
-if [ ! -d "$NICKEL_DIR/nickel" ]; then
-    echo "❌ Error: Nickel patches not found"
-    echo "   Please clone nickel-browser repository to $NICKEL_DIR/nickel"
+if [ ! -d "$NICKEL_DIR/patches" ]; then
+    echo "❌ Error: Nickel patches not found in $NICKEL_DIR"
     exit 1
 fi
 
 # Apply patches if not already applied
 if [ ! -f "$SRC_DIR/.nickel_patches_applied" ]; then
     echo "🔧 Applying Nickel patches..."
-    # If NICKEL_DIR is not set, assume standard location
-    NICKEL_DIR="${NICKEL_DIR:-$HOME/nickel-build/nickel}"
     bash "$NICKEL_DIR/scripts/apply_patches.sh"
     bash "$NICKEL_DIR/scripts/apply_nickel_branding.sh"
 else
@@ -46,7 +50,9 @@ echo "⚙️  Configuring build..."
 
 mkdir -p out/Nickel
 
-cat > out/Nickel/args.gn << 'EOF'
+if [ ! -f out/Nickel/args.gn ]; then
+    echo "📄 Creating default args.gn..."
+    cat > out/Nickel/args.gn << 'EOF'
 # Nickel Browser Build Configuration
 is_official_build = true
 is_debug = false
@@ -86,6 +92,9 @@ use_thin_lto = true
 # nickel_enable_vpn = true
 # nickel_enable_fingerprint = true
 EOF
+else
+    echo "✅ args.gn already exists. Skipping creation."
+fi
 
 gn gen out/Nickel
 
@@ -95,10 +104,15 @@ echo "   This will take 4-8 hours depending on your hardware."
 echo ""
 
 # Determine number of parallel jobs
-TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-CPU_CORES=$(nproc)
+if [ -n "$GITHUB_ACTIONS" ]; then
+    # In CI, we want to maximize utilization but stay within limits
+    JOBS=$(nproc)
+    echo "🤖 CI environment detected. Using -j$JOBS."
+else
+    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+    CPU_CORES=$(nproc)
 
-if [ "$TOTAL_RAM" -lt 8192 ]; then
+    if [ "$TOTAL_RAM" -lt 8192 ]; then
     JOBS=1
     echo "💾 Low RAM detected (${TOTAL_RAM}MB). Using -j1 for stability."
 elif [ "$TOTAL_RAM" -lt 16384 ]; then

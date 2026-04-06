@@ -8,8 +8,14 @@ echo "🪙 Nickel Browser - Build AppImage"
 echo "==================================="
 echo ""
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default SRC_DIR if not set
 SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
-APPDIR="out/Nickel/Nickel.AppDir"
+
+APPDIR="$SRC_DIR/out/Nickel/Nickel.AppDir"
 
 if [ ! -d "$SRC_DIR/out/Nickel" ]; then
     echo "❌ Error: Nickel build not found at $SRC_DIR/out/Nickel"
@@ -32,8 +38,8 @@ cp out/Nickel/v8_context_snapshot.bin "$APPDIR/usr/bin/" 2>/dev/null || true
 cp out/Nickel/lib*.so "$APPDIR/usr/bin/" 2>/dev/null || true
 
 echo "🎨 Copying branding..."
-cp "$SRC_DIR/../src/nickel/branding/Nickel.png" "$APPDIR/usr/share/icons/hicolor/128x128/apps/nickel.png"
-cp "$SRC_DIR/../src/nickel/branding/Nickel.png" "$APPDIR/nickel.png"
+cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$APPDIR/usr/share/icons/hicolor/128x128/apps/nickel.png" 2>/dev/null || true
+cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$APPDIR/nickel.png" 2>/dev/null || true
 
 echo "📝 Creating desktop entry..."
 cat > "$APPDIR/nickel-browser.desktop" << 'EOF'
