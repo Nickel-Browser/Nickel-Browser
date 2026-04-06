@@ -1,650 +1,247 @@
-name: 🛡️ Nickel Browser Production Build
+name: 🛡️ Nickel Browser Production Build (FIXED)
 
 on:
-  # Manual trigger
   workflow_dispatch:
     inputs:
       chromium_version:
-        description: 'Chromium version to build (e.g., 120.0.6099.109)'
+        description: 'Chromium version (e.g., 120.0.6099.109)'
         required: false
         default: 'latest'
       skip_cache:
         description: 'Skip cache and do fresh build'
-        required: false
-        default: 'false'
-  
-  # Scheduled builds every 6 hours (24/7 operation)
+        type: boolean
+        default: false
   schedule:
     - cron: '0 */6 * * *'
-  
-  # Build on release tag push
   push:
     tags:
       - 'v*'
     branches:
       - main
 
-# Concurrency control - prevent overlapping builds
 concurrency:
-  group: production-build
+  group: production-build-${{ github.ref }}
   cancel-in-progress: false
 
-# Global environment variables
 env:
   NICKEL_VERSION: "1.0.0-alpha"
   CHROMIUM_CHANNEL: "Stable"
-  BUILD_DIR: ${{ github.workspace }}/nickel-build
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NICKEL_DIR: ${{ github.workspace }}
+  SRC_DIR: ${{ runner.os == 'Windows' && 'C:\nickel-src\src' || '~/nickel-src/src' }}
+  DEPOT_TOOLS_PATH: ${{ runner.os == 'Windows' && 'C:\depot_tools' || '~/depot_tools' }}
 
 jobs:
   # ============================================================================
-  # JOB 1: Check for Chromium Updates (24/7 Monitoring)
+  # JOB 1: Check for Chromium Updates
   # ============================================================================
-  check-chromium-updates:
-    name: 🔍 Check Chromium Updates
+  check-updates:
+    name: 🔍 Check Updates
     runs-on: ubuntu-latest
     outputs:
       new_version: ${{ steps.check.outputs.new_version }}
       should_build: ${{ steps.check.outputs.should_build }}
       current_version: ${{ steps.check.outputs.current_version }}
     steps:
-      - name: 📥 Checkout Repository
+      - name: 📥 Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 🔍 Check Latest Chromium Version
+      - name: 🔍 Check Latest Version
         id: check
         run: |
-          # Fetch latest stable Chromium version
+          echo "=== STEP 1 START: CHECK CHROMIUM VERSION ==="
           LATEST=$(curl -s "https://chromiumdash.appspot.com/fetch_releases?channel=Stable&num=1" | jq -r '.[0].version')
-          echo "Latest Chromium: $LATEST"
+          CURRENT=$(cat .chromium_version 2>/dev/null || echo "none")
           
-          # Read currently built version
-          if [ -f .chromium_version ]; then
-            CURRENT=$(cat .chromium_version)
-          else
-            CURRENT="none"
-          fi
-          echo "Current built: $CURRENT"
+          echo "LOG: Latest: $LATEST, Current: $CURRENT"
           
-          # Determine if build needed
-          if [ "$LATEST" != "$CURRENT" ] || [ "${{ github.event.inputs.chromium_version }}" != "" ]; then
+          if [ "$LATEST" != "$CURRENT" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "new_version=$LATEST" >> $GITHUB_OUTPUT
             echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
-            echo "🆕 New Chromium version detected: $LATEST"
           else
             echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "new_version=$LATEST" >> $GITHUB_OUTPUT
-            echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
-            echo "✅ Already up to date with Chromium $CURRENT"
           fi
       
-      - name: 📊 Update Build Status
+      - name: 📊 Update Version File
         if: steps.check.outputs.should_build == 'true'
         run: |
           echo "${{ steps.check.outputs.new_version }}" > .chromium_version
-          git config user.name "Nickel CI Bot"
+          git config user.name "Nickel CI"
           git config user.email "ci@nickel-browser.org"
           git add .chromium_version
-          git commit -m "chore: update Chromium version to ${{ steps.check.outputs.new_version }}" || true
+          git commit -m "chore: bump Chromium to ${{ steps.check.outputs.new_version }}" || true
           git push || true
 
   # ============================================================================
-  # JOB 2: Build Linux Packages (.deb, .rpm, .AppImage, .tar.xz)
+  # JOB 2: Build Matrix
   # ============================================================================
-  build-linux:
-    name: 🐧 Build Linux Packages
-    needs: check-chromium-updates
-    if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours (GitHub free tier limit)
-    outputs:
-      deb_package: ${{ steps.package.outputs.deb }}
-      rpm_package: ${{ steps.package.outputs.rpm }}
-      appimage_package: ${{ steps.package.outputs.appimage }}
-      tar_package: ${{ steps.package.outputs.tar }}
+  build:
+    name: 🏗️ Build (${{ matrix.os }})
+    needs: check-updates
+    if: needs.check-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
     
     steps:
-      - name: 📥 Checkout Nickel Browser
+      - name: 📥 Checkout Nickel
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 💾 Free Disk Space
+
+      - name: 🟢 Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: 🐧 Linux Deps
+        if: runner.os == 'Linux'
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo apt-get clean
-          df -h
-      
-      - name: 🛠️ Install Build Dependencies
-        run: |
+          echo "=== STEP: INSTALL LINUX DEPS ==="
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost"
           sudo apt-get update
-          sudo apt-get install -y \
-            git curl wget python3 python3-pip python3-venv \
-            ninja-build pkg-config build-essential \
-            libglib2.0-dev libgtk-3-dev libpulse-dev libasound2-dev \
-            libdbus-1-dev libx11-dev libxcomposite-dev libxcursor-dev \
-            libxdamage-dev libxfixes-dev libxi-dev libxrandr-dev \
-            libxss-dev libxtst-dev libatk1.0-dev libcups2-dev \
-            libdrm-dev mesa-common-dev libgbm-dev \
-            libssl-dev libnss3-dev libffi-dev jq
-      
-      - name: 📦 Setup Depot Tools
-        run: |
-          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-          echo "$HOME/depot_tools" >> $GITHUB_PATH
-          export PATH="$HOME/depot_tools:$PATH"
-      
-      - name: 🔄 Cache Chromium Source
-        uses: actions/cache@v4
-        id: chromium-cache
-        with:
-          path: |
-            ~/nickel-src
-            ~/nickel-src/src/out
-          key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-${{ runner.os }}
-          restore-keys: |
-            chromium-${{ needs.check-chromium-updates.outputs.current_version }}-${{ runner.os }}
-            chromium-
-      
-      - name: 📥 Fetch Chromium Source
-        if: steps.chromium-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          mkdir -p ~/nickel-src && cd ~/nickel-src
-          fetch --nohooks chromium
-          cd src
-          gclient sync --with_branch_heads --with_tags -D
-          gclient runhooks
-        timeout-minutes: 240
-      
-      - name: 🔧 Apply Ungoogled-Chromium Patches
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          cd ~/nickel-src/src
-          
-          # Clone ungoogled-chromium
-          git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git ../ungoogled-chromium
-          
-          # Apply ungoogled patches
-          python3 ../ungoogled-chromium/utils/prune_binaries.py ./ ../ungoogled-chromium/pruning.list
-          python3 ../ungoogled-chromium/utils/patches.py apply ./ ../ungoogled-chromium/patches
-          python3 ../ungoogled-chromium/utils/domain_substitution.py apply -r ../ungoogled-chromium/domain_regex.list -f ../ungoogled-chromium/domain_substitution.list ./
-      
-      - name: 🎨 Apply Nickel Browser Patches
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          export SRC_DIR=~/nickel-src/src
-          export NICKEL_DIR=${{ github.workspace }}
-          bash $NICKEL_DIR/scripts/apply_patches.sh
-          bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
-      
-      - name: ⚙️ Generate Build Configuration
-        run: |
-          cd ~/nickel-src/src
-          mkdir -p out/Nickel
-          cat > out/Nickel/args.gn << 'EOF'
-          is_official_build=true
-          is_debug=false
-          symbol_level=0
-          enable_nacl=false
-          proprietary_codecs=true
-          ffmpeg_branding="Chrome"
-          use_sysroot=false
-          treat_warnings_as_errors=false
-          enable_reporting=false
-          google_api_key=""
-          google_default_client_id=""
-          google_default_client_secret=""
-          use_lld=true
-          v8_enable_backtrace=true
-          EOF
-          gn gen out/Nickel
-      
-      - name: 🔨 Build Nickel Browser
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          export SRC_DIR=~/nickel-src/src
-          export NICKEL_DIR=${{ github.workspace }}
-          bash $NICKEL_DIR/scripts/build.sh
-        timeout-minutes: 300
-      
-      - name: 🧪 Run Smoke Tests
-        run: |
-          cd ~/nickel-src/src
-          ./out/Nickel/chrome --version || true
-          echo "✅ Build successful"
-      
-      - name: 📦 Package Linux Artifacts
-        id: package
-        run: |
-          cd ~/nickel-src/src
-          
-          VERSION="${{ needs.check-chromium-updates.outputs.new_version }}"
-          export NICKEL_VERSION="${{ env.NICKEL_VERSION }}"
-          
-          # Create packaging directory
-          mkdir -p packaging/NickelBrowser
-          cp -r out/Nickel/* packaging/NickelBrowser/
-          
-          # Build .deb package
-          bash ${{ github.workspace }}/scripts/build-deb.sh
-          DEB_FILE="nickel-browser_${NICKEL_VERSION}_amd64.deb"
-          mv *.deb "$DEB_FILE" 2>/dev/null || true
-          echo "deb=$DEB_FILE" >> $GITHUB_OUTPUT
-          
-          # Build .rpm package
-          bash ${{ github.workspace }}/scripts/build-rpm.sh || true
-          RPM_FILE="nickel-browser-${NICKEL_VERSION}.x86_64.rpm"
-          mv *.rpm "$RPM_FILE" 2>/dev/null || true
-          echo "rpm=$RPM_FILE" >> $GITHUB_OUTPUT
-          
-          # Build AppImage
-          bash ${{ github.workspace }}/scripts/build-appimage.sh
-          APPIMAGE_FILE="NickelBrowser-${NICKEL_VERSION}.AppImage"
-          mv *.AppImage "$APPIMAGE_FILE" 2>/dev/null || true
-          echo "appimage=$APPIMAGE_FILE" >> $GITHUB_OUTPUT
-          
-          # Create .tar.xz
-          TAR_FILE="nickel-browser-${NICKEL_VERSION}-linux-x64.tar.xz"
-          tar -cJf "$TAR_FILE" -C packaging NickelBrowser
-          echo "tar=$TAR_FILE" >> $GITHUB_OUTPUT
-          
-          # Move to workspace for upload
-          mv *.deb *.rpm *.AppImage *.tar.xz ${{ github.workspace }}/ 2>/dev/null || true
-      
-      - name: 🔐 Sign Packages
-        run: |
-          cd ${{ github.workspace }}
-          if [ -n "${{ secrets.SIGNING_KEY }}" ]; then
-            for file in *.deb *.rpm *.AppImage *.tar.xz; do
-              if [ -f "$file" ]; then
-                echo "${{ secrets.SIGNING_KEY }}" | gpg --batch --yes --import
-                gpg --batch --yes --detach-sign --armor "$file"
-                sha256sum "$file" > "${file}.sha256"
-              fi
-            done
-          fi
-      
-      - name: 📤 Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nickel-linux-packages
-          path: |
-            ${{ github.workspace }}/*.deb
-            ${{ github.workspace }}/*.rpm
-            ${{ github.workspace }}/*.AppImage
-            ${{ github.workspace }}/*.tar.xz
-            ${{ github.workspace }}/*.asc
-            ${{ github.workspace }}/*.sha256
-          if-no-files-found: warn
-          retention-days: 30
+          sudo apt-get install -y git curl wget python3 python3-pip ninja-build pkg-config build-essential \
+            libglib2.0-dev libgtk-3-dev libpulse-dev libasound2-dev libdbus-1-dev libx11-dev libxcomposite-dev \
+            libxcursor-dev libxdamage-dev libxfixes-dev libxi-dev libxrandr-dev libxss-dev libxtst-dev \
+            libatk1.0-dev libcups2-dev libdrm-dev mesa-common-dev libgbm-dev libssl-dev libnss3-dev libffi-dev jq rpm
+          df -h
 
-  # ============================================================================
-  # JOB 3: Build macOS Package (.dmg)
-  # ============================================================================
-  build-macos:
-    name: 🍎 Build macOS Package
-    needs: check-chromium-updates
-    if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-latest
-    timeout-minutes: 360
-    outputs:
-      dmg_package: ${{ steps.package.outputs.dmg }}
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      
-      - name: 🛠️ Install Dependencies
+      - name: 🍎 macOS Deps
+        if: runner.os == 'macOS'
         run: |
-          brew install ninja python@3.11 jq
-          pip3 install pillow pyyaml
-      
-      - name: 📦 Setup Depot Tools
-        run: |
-          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-          echo "$HOME/depot_tools" >> $GITHUB_PATH
-      
-      - name: 🔄 Cache Chromium
-        uses: actions/cache@v4
-        id: chromium-cache
-        with:
-          path: |
-            ~/nickel-src
-            ~/nickel-src/src/out
-          key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-macos
-          restore-keys: |
-            chromium-
-      
-      - name: 📥 Fetch Chromium
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          mkdir -p ~/nickel-src && cd ~/nickel-src
-          fetch --nohooks chromium
-          cd src && gclient sync -D && gclient runhooks
-      
-      - name: 🔧 Apply All Patches
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          export SRC_DIR=~/nickel-src/src
-          export NICKEL_DIR=${{ github.workspace }}
-          bash $NICKEL_DIR/scripts/apply_patches.sh
-          bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
-      
-      - name: 🔨 Build
-        run: |
-          export PATH="$HOME/depot_tools:$PATH"
-          cd ~/nickel-src/src
-          gn gen out/Nickel --args='is_official_build=true is_debug=false symbol_level=0'
-          autoninja -C out/Nickel chrome
-      
-      - name: 📦 Create .dmg
-        id: package
-        run: |
-          cd ~/nickel-src/src
-          bash ${{ github.workspace }}/scripts/build-dmg.sh || true
-          DMG_FILE="NickelBrowser-${{ env.NICKEL_VERSION }}-macos.dmg"
-          mv out/Nickel/*.dmg "$DMG_FILE" 2>/dev/null || true
-          echo "dmg=$DMG_FILE" >> $GITHUB_OUTPUT
-          cp "$DMG_FILE" ${{ github.workspace }}/ 2>/dev/null || true
-      
-      - name: 🔐 Sign
-        run: |
-          cd ${{ github.workspace }}
-          if [ -n "${{ secrets.SIGNING_KEY }}" ]; then
-            for file in *.dmg; do
-              [ -f "$file" ] && codesign -s "${{ secrets.APPLE_CERT_ID }}" "$file" || true
-            done
-          fi
-      
-      - name: 📤 Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: nickel-macos-package
-          path: ${{ github.workspace }}/*.dmg
-          if-no-files-found: warn
-          retention-days: 30
+          echo "=== STEP: INSTALL MAC DEPS ==="
+          brew install ninja jq
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-  # ============================================================================
-  # JOB 4: Build Windows Package (.exe)
-  # ============================================================================
-  build-windows:
-    name: 🪟 Build Windows Package
-    needs: check-chromium-updates
-    if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
-    timeout-minutes: 360
-    outputs:
-      exe_package: ${{ steps.package.outputs.exe }}
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-      
-      - name: 🛠️ Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-      
-      - name: 🛠️ Install Dependencies
+      - name: 🪟 Windows Deps
+        if: runner.os == 'Windows'
         run: |
-          choco install ninja jq -y
+          echo "=== STEP: INSTALL WINDOWS DEPS ==="
+          choco install ninja jq nsis -y
           pip install pillow pyyaml
-      
+
+      - name: 🛠️ Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: 📦 Setup Depot Tools
-        run: |
-          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $env:USERPROFILE\depot_tools
-          "$env:USERPROFILE\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Append
-      
-      - name: 🔄 Cache Chromium
-        uses: actions/cache@v4
-        id: chromium-cache
-        with:
-          path: |
-            ~/nickel-src
-            ~/nickel-src/src/out
-          key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-windows
-          restore-keys: |
-            chromium-
-      
-      - name: 📥 Fetch Chromium
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
-        run: |
-          $env:PATH = "$env:USERPROFILE\depot_tools;$env:PATH"
-          mkdir ~/nickel-src; cd ~/nickel-src
-          fetch --nohooks chromium
-          cd src; gclient sync -D; gclient runhooks
-      
-      - name: 🔧 Apply All Patches
         shell: bash
         run: |
-          export PATH="$USERPROFILE/depot_tools:$PATH"
-          export SRC_DIR=~/nickel-src/src
-          export NICKEL_DIR=${{ github.workspace }}
+          echo "=== STEP: SETUP DEPOT TOOLS ==="
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git ${{ env.DEPOT_TOOLS_PATH }}
+          # Normalize path for Windows runners
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            echo "C:/depot_tools" >> $GITHUB_PATH
+          else
+            echo "${{ env.DEPOT_TOOLS_PATH }}" >> $GITHUB_PATH
+          fi
+
+      - name: 🔄 Cache Chromium
+        uses: actions/cache@v4
+        id: cache-chromium
+        with:
+          path: |
+            ~/nickel-src
+            C:\nickel-src
+          key: chromium-${{ needs.check-updates.outputs.new_version }}-${{ runner.os }}-${{ hashFiles('.chromium_version') }}
+          restore-keys: |
+            chromium-${{ needs.check-updates.outputs.new_version }}-${{ runner.os }}-
+            chromium-
+
+      - name: 📥 Fetch Chromium
+        shell: bash
+        if: steps.cache-chromium.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
+        run: |
+          echo "=== STEP: FETCH CHROMIUM ==="
+          export PATH="${{ env.DEPOT_TOOLS_PATH }}:$PATH"
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            mkdir -p C:/nickel-src
+            cd C:/nickel-src
+          else
+            mkdir -p ~/nickel-src
+            cd ~/nickel-src
+          fi
+          fetch --nohooks chromium
+          cd src
+          gclient sync -D --with_branch_heads --jobs=16
+          gclient runhooks
+
+      - name: 🔧 Apply Patches & Branding
+        shell: bash
+        run: |
+          echo "=== STEP: APPLY PATCHES & BRANDING ==="
+          export NICKEL_DIR="${{ github.workspace }}"
+          export SRC_DIR="${{ runner.os == 'Windows' && 'C:/nickel-src/src' || '~/nickel-src/src' }}"
           bash $NICKEL_DIR/scripts/apply_patches.sh
           bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
-      
-      - name: 🔨 Build
+
+      - name: 🔨 Build Nickel Browser
+        shell: bash
         run: |
-          $env:PATH = "$env:USERPROFILE\depot_tools;$env:PATH"
-          cd ~/nickel-src/src
-          gn gen out/Nickel --args='is_official_build=true is_debug=false symbol_level=0'
-          autoninja -C out/Nickel chrome
-      
-      - name: 📦 Create Installer
-        id: package
-        run: |
-          cd ~/nickel-src/src
-          bash ${{ github.workspace }}/scripts/build-windows-installer.sh
-          $EXE_FILE = "NickelBrowser-${{ env.NICKEL_VERSION }}-windows-x64.exe"
-          Move-Item out/Nickel/*.exe $EXE_FILE -ErrorAction SilentlyContinue
-          "exe=$EXE_FILE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Copy-Item $EXE_FILE ${{ github.workspace }}/
-      
-      - name: 🔐 Sign
-        env:
-          WINDOWS_CERT: ${{ secrets.WINDOWS_CERT }}
-          WINDOWS_CERT_PASS: ${{ secrets.WINDOWS_CERT_PASS }}
-        if: env.WINDOWS_CERT != ''
-        run: |
-          cd ${{ github.workspace }}
-          signtool sign /f ${{ secrets.WINDOWS_CERT }} /p ${{ secrets.WINDOWS_CERT_PASS }} *.exe
-      
-      - name: 📤 Upload
+          echo "=== STEP: BUILD NICKEL ==="
+          export NICKEL_DIR="${{ github.workspace }}"
+          export SRC_DIR="${{ runner.os == 'Windows' && 'C:/nickel-src/src' || '~/nickel-src/src' }}"
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            bash $NICKEL_DIR/scripts/build_linux.sh
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            bash $NICKEL_DIR/scripts/build_macos.sh
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            bash $NICKEL_DIR/scripts/build_windows.sh
+          fi
+
+      - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nickel-windows-package
-          path: ${{ github.workspace }}/*.exe
-          if-no-files-found: warn
-          retention-days: 30
+          name: nickel-${{ runner.os }}-packages
+          path: |
+            *.deb
+            *.rpm
+            *.AppImage
+            *.dmg
+            *.exe
+            *.sha256
+            *.asc
 
   # ============================================================================
-  # JOB 5: Create GitHub Release & Send Email Notification
+  # JOB 3: Release & Notify
   # ============================================================================
-  release-and-notify:
-    name: 🚀 Release & Email Notification
-    needs: [check-chromium-updates, build-linux, build-macos, build-windows]
-    if: always() && (needs.build-linux.result == 'success' || needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
+  release:
+    name: 🚀 Release & Notify
+    needs: [check-updates, build]
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 📥 Download All Artifacts
+      - name: 📥 Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
-      
-      - name: 📋 List Artifacts
-        run: |
-          echo "=== BUILD ARTIFACTS ==="
-          find artifacts -type f -exec ls -lh {} \;
-          echo "======================="
-      
-      - name: 🏷️ Create GitHub Release
-        id: create_release
+
+      - name: 🏷️ GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.NICKEL_VERSION }}-${{ needs.check-chromium-updates.outputs.new_version }}
-          name: 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }} (Chromium ${{ needs.check-chromium-updates.outputs.new_version }})
-          body: |
-            ## 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }}
-            
-            Built on Chromium **${{ needs.check-chromium-updates.outputs.new_version }}**
-            
-            ### 📦 Downloads
-            
-            **Linux:**
-            - `.deb` - Debian/Ubuntu
-            - `.rpm` - Fedora/RHEL
-            - `.AppImage` - Universal Linux
-            - `.tar.xz` - Portable
-            
-            **macOS:**
-            - `.dmg` - macOS Installer
-            
-            **Windows:**
-            - `.exe` - Windows Installer
-            
-            ### ✨ Features
-            - 🛡️ Native Adblock (NickelShield)
-            - 🧅 Built-in Tor Private Windows
-            - 🔐 VPN Integration (WireGuard/OpenVPN)
-            - 🎭 Fingerprint Protection
-            - ⌨️ Keyboard/Mouse Leak Block
-            - 📝 Natural Language Fixer
-            - 📦 Community Features (Vertical Tabs, Containers)
-            
-            ### 🔒 Verification
-            All packages are signed with Ed25519. Checksums provided.
+          tag_name: v${{ env.NICKEL_VERSION }}-${{ needs.check-updates.outputs.new_version }}
+          name: 🛡️ Nickel ${{ env.NICKEL_VERSION }} (Chromium ${{ needs.check-updates.outputs.new_version }})
           files: artifacts/**/*
-          draft: false
           prerelease: true
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 📧 Send Email Notification
+
+      - name: 📧 Email Notification
+        if: failure() || success()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.protonmail.ch
           server_port: 587
           username: sho.islam0311@proton.me
           password: ${{ secrets.SMTP_PASS }}
-          subject: 🛡️ Nickel Browser Build Complete - ${{ needs.check-chromium-updates.outputs.new_version }}
+          subject: Nickel Build ${{ job.status }} - ${{ needs.check-updates.outputs.new_version }}
           to: ${{ secrets.NOTIFY_EMAIL }}
           from: Nickel CI <ci@nickel-browser.org>
-          html_body: |
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #eaeaea; margin: 0; padding: 20px; }
-                .container { max-width: 600px; margin: 0 auto; background: #16213e; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-                .header { background: linear-gradient(135deg, #0f3460 0%, #e94560 100%); padding: 40px 20px; text-align: center; }
-                .header h1 { margin: 0; font-size: 28px; color: #fff; }
-                .header p { margin: 10px 0 0; opacity: 0.9; }
-                .content { padding: 30px; }
-                .status { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 12px; text-transform: uppercase; }
-                .status.success { background: #28a745; color: white; }
-                .packages { margin: 20px 0; }
-                .package { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #e94560; }
-                .package h3 { margin: 0 0 5px; color: #e94560; font-size: 16px; }
-                .package p { margin: 0; font-size: 14px; opacity: 0.8; }
-                .cta { text-align: center; margin: 30px 0; }
-                .cta a { display: inline-block; background: #e94560; color: white; padding: 15px 40px; border-radius: 30px; text-decoration: none; font-weight: bold; transition: transform 0.2s; }
-                .cta a:hover { transform: scale(1.05); }
-                .footer { text-align: center; padding: 20px; font-size: 12px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.1); }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <h1>🛡️ Nickel Browser</h1>
-                  <p>Build Complete & Ready for Download</p>
-                </div>
-                <div class="content">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <span class="status success">✅ Build Successful</span>
-                  </div>
-                  
-                  <p>Hello,</p>
-                  <p>The automated build for <strong>Nickel Browser v${{ env.NICKEL_VERSION }}</strong> has completed successfully.</p>
-                  
-                  <div class="packages">
-                    <h2>📦 Available Packages</h2>
-                    
-                    <div class="package">
-                      <h3>🐧 Linux</h3>
-                      <p>.deb, .rpm, .AppImage, .tar.xz</p>
-                    </div>
-                    
-                    <div class="package">
-                      <h3>🍎 macOS</h3>
-                      <p>.dmg Installer</p>
-                    </div>
-                    
-                    <div class="package">
-                      <h3>🪟 Windows</h3>
-                      <p>.exe Installer</p>
-                    </div>
-                  </div>
-                  
-                  <p><strong>Chromium Base Version:</strong> ${{ needs.check-chromium-updates.outputs.new_version }}</p>
-                  <p><strong>Build Time:</strong> ${{ github.run_duration }} minutes</p>
-                  
-                  <div class="cta">
-                    <a href="${{ steps.create_release.outputs.html_url }}">⬇️ Download Release</a>
-                  </div>
-                  
-                  <p style="font-size: 12px; opacity: 0.7; margin-top: 30px;">
-                    <strong>🔒 Security:</strong> All packages are signed with Ed25519. Verify checksums before installation.
-                  </p>
-                </div>
-                <div class="footer">
-                  <p>Nickel Browser CI/CD System | 24/7 Automated Builds</p>
-                  <p><a href="https://github.com/Nickel-Browser/Nickel-Browser" style="color: #e94560;">View on GitHub</a></p>
-                </div>
-              </div>
-            </body>
-            </html>
-          convert_markdown: false
-      
-      - name: 📱 Send Telegram Notification (Optional)
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        if: env.TELEGRAM_BOT_TOKEN != ''
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: |
-            🛡️ <b>Nickel Browser Build Complete</b>
-            
-            ✅ Version: ${{ env.NICKEL_VERSION }}
-            🔧 Chromium: ${{ needs.check-chromium-updates.outputs.new_version }}
-            
-            📦 Packages Ready:
-            • Linux (.deb, .rpm, .AppImage)
-            • macOS (.dmg)
-            • Windows (.exe)
-            
-            ⬇️ <a href="${{ steps.create_release.outputs.html_url }}">Download Now</a>
-          format: html
-      
-      - name: 🌐 Trigger Website Update
-        if: success()
-        run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type": "build_complete"}'
+          body: |
+            Nickel Browser build for Chromium ${{ needs.check-updates.outputs.new_version }} status: ${{ job.status }}
+            Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

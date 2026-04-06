@@ -1,133 +1,104 @@
 #!/bin/bash
-# Nickel Browser - Apply Patches Script
-# Applies all Nickel patches to Chromium source
+# Nickel Browser - Apply Patches Script (Production Grade)
+# Author: FimuFixer CI Engine for Showaib Islam
 
-set -e
+set -euo pipefail
 
-echo "🪙 Nickel Browser - Apply Patches"
-echo "=================================="
-echo ""
+echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] NICKEL PATCHES START ==="
 
-# Get the directory where the script is located
+# Directories and Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Nickel directory is the parent of the scripts directory
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-# Default SRC_DIR if not set
 SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
+UNGOOGLED_DIR="${UNGOOGLED_DIR:-$(cd "$SRC_DIR/.." && pwd)/ungoogled-chromium}"
 
-echo "📍 NICKEL_DIR: $NICKEL_DIR"
-echo "📍 SRC_DIR: $SRC_DIR"
+echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
+echo "DEBUG: NICKEL_DIR=$NICKEL_DIR"
+echo "DEBUG: SRC_DIR=$SRC_DIR"
+echo "DEBUG: UNGOOGLED_DIR=$UNGOOGLED_DIR"
 
-# Check directories
-if [ ! -d "$NICKEL_DIR" ]; then
-    echo "❌ Error: Nickel directory not found at $NICKEL_DIR"
-    exit 1
-fi
-
+# Validation
 if [ ! -d "$SRC_DIR" ]; then
-    echo "❌ Error: Chromium source not found at $SRC_DIR"
+    echo "ERROR: Chromium source not found at $SRC_DIR. Fatal."
     exit 1
 fi
 
 cd "$SRC_DIR"
 
-# Apply ungoogled-chromium patches if present
-echo "📋 Applying ungoogled-chromium patches..."
-UNGOOGLED_DIR="${UNGOOGLED_DIR:-$HOME/nickel-src/ungoogled-chromium}"
+# Ensure we are in a git repository to use git apply
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    echo "WARNING: $SRC_DIR is not a git repository. Initializing..."
+    git init
+    git config user.name "Nickel CI"
+    git config user.email "ci@nickel-browser.org"
+    git add .
+    git commit -m "Initial commit of Chromium source" || true
+fi
 
+# Clone Ungoogled-Chromium if missing
+if [ ! -d "$UNGOOGLED_DIR" ]; then
+    echo "LOG: Ungoogled-chromium not found. Cloning..."
+    git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git "$UNGOOGLED_DIR"
+fi
+
+# Apply Ungoogled-Chromium patches
 if [ -d "$UNGOOGLED_DIR" ]; then
-    echo "✅ Found ungoogled-chromium at $UNGOOGLED_DIR"
+    echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] APPLYING UNGOOGLED PATCHES ==="
     
-    # Prune binaries
+    # Binary Pruning
     if [ -f "$UNGOOGLED_DIR/utils/prune_binaries.py" ]; then
-        echo "🗑️  Pruning Google binaries..."
-        python3 "$UNGOOGLED_DIR/utils/prune_binaries.py" ./ "$UNGOOGLED_DIR/pruning.list"
+        echo "LOG: Pruning binaries..."
+        python3 "$UNGOOGLED_DIR/utils/prune_binaries.py" "$SRC_DIR" "$UNGOOGLED_DIR/pruning.list"
     fi
     
-    # Apply domain substitution
+    # Patches
+    if [ -d "$UNGOOGLED_DIR/patches" ]; then
+        echo "LOG: Applying ungoogled-chromium patches..."
+        python3 "$UNGOOGLED_DIR/utils/patches.py" apply "$SRC_DIR" "$UNGOOGLED_DIR/patches" || echo "WARNING: Some ungoogled patches failed to apply."
+    fi
+
+    # Domain Substitution
     if [ -f "$UNGOOGLED_DIR/utils/domain_substitution.py" ]; then
-        echo "🔄 Applying domain substitution..."
+        echo "LOG: Applying domain substitution..."
         python3 "$UNGOOGLED_DIR/utils/domain_substitution.py" apply \
             -r "$UNGOOGLED_DIR/domain_regex.list" \
             -f "$UNGOOGLED_DIR/domain_substitution.list" \
-            -c "$HOME/nickel-src/domsubcache.tar.gz" ./
+            "$SRC_DIR"
     fi
-    
-    # Apply patches
-    if [ -d "$UNGOOGLED_DIR/patches" ]; then
-        echo "🔧 Applying ungoogled patches..."
-        # Using quilt-style approach for ungoogled patches is often better, but let's stick to git apply for now
-        # but avoid failures on already applied patches
-        for patch in "$UNGOOGLED_DIR/patches"/*.patch; do
-            if [ -f "$patch" ]; then
-                echo "  Applying: $(basename $patch)"
-                git apply --check "$patch" > /dev/null 2>&1
-                if [ $? -eq 0 ]; then
-                    git apply "$patch" && echo "    ✅ Applied"
-                else
-                    echo "    ⚠️  Skipped (already applied or conflict)"
-                fi
-            fi
-        done
-    fi
-else
-    echo "⚠️  ungoogled-chromium not found. Skipping ungoogled patches."
 fi
 
-echo ""
-echo "🔧 Applying Nickel Browser patches..."
+# Apply Nickel-specific Patches
+if [ -d "$NICKEL_DIR/patches" ]; then
+    echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] APPLYING NICKEL PATCHES ==="
 
-# Apply Nickel patches in order
-NICKEL_PATCHES=(
-    "0001-remove-google-api-keys.patch"
-    "0002-disable-safe-browsing-ping.patch"
-    "0003-disable-webrtc-leak.patch"
-    "0004-disable-crash-reporter.patch"
-    "0005-disable-metrics-upload.patch"
-    "0006-disable-field-trials-seed.patch"
-    "0007-spoof-useragent-nickel.patch"
-    "0008-remove-google-update.patch"
-    "0009-nickel-branding.patch"
-    "0010-nickel-newtab.patch"
-    "0011-nickel-adblock-engine.patch"
-    "0012-nickel-fingerprint-protection.patch"
-    "0013-nickel-tor-private-window.patch"
-    "0014-nickel-vpn-layer.patch"
-    "0015-nickel-natural-language-fixer.patch"
-    "0016-nickel-autoupdate-chromium-sync.patch"
-    "0017-nickel-youtube-deep-adblock.patch"
-    "0018-nickel-keyboard-mouse-leak-block.patch"
-    "0019-nickel-community-features.patch"
-)
+    # Get sorted list of patches
+    PATCHES=$(find "$NICKEL_DIR/patches" -name "*.patch" | sort)
 
-for patch in "${NICKEL_PATCHES[@]}"; do
-    patch_path="$NICKEL_DIR/patches/$patch"
-    if [ -f "$patch_path" ]; then
-        echo "  Applying: $patch"
-        if git apply "$patch_path"; then
-            echo "    ✅ Applied successfully"
+    for patch in $PATCHES; do
+        patch_name=$(basename "$patch")
+        echo "LOG: Applying patch: $patch_name"
+
+        if git apply --check "$patch" > /dev/null 2>&1; then
+            if git apply "$patch"; then
+                echo "SUCCESS: $patch_name applied."
+            else
+                echo "ERROR: Failed to apply $patch_name."
+                exit 1
+            fi
         else
-            echo "    ⚠️  Failed to apply (may already be applied or conflict)"
+            echo "SKIP: $patch_name already applied or conflicts."
         fi
-    else
-        echo "  ⚠️  Patch not found: $patch"
-    fi
-done
+    done
+else
+    echo "ERROR: Nickel patches directory not found. Fatal."
+    exit 1
+fi
 
 # Copy Nickel source files
-echo ""
-echo "📁 Copying Nickel source files..."
-
 if [ -d "$NICKEL_DIR/src/nickel" ]; then
-    echo "  Copying nickel/ directory..."
-    cp -r "$NICKEL_DIR/src/nickel" ./
-    echo "    ✅ Done"
+    echo "LOG: Merging Nickel source files..."
+    cp -rv "$NICKEL_DIR/src/nickel" "$SRC_DIR/"
 fi
 
-# Mark patches as applied
+echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] NICKEL PATCHES COMPLETE ==="
 touch "$SRC_DIR/.nickel_patches_applied"
-
-echo ""
-echo "✅ Patches applied!"
-echo ""
-echo "You can now build with: gn gen out/Nickel && autoninja -C out/Nickel chrome"

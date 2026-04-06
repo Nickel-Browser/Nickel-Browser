@@ -1,23 +1,44 @@
 #!/bin/bash
-set -e
+# Nickel Browser - Build Windows Installer (Production Grade)
+# Author: FimuFixer CI Engine for Showaib Islam
+
+set -euo pipefail
+
+echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] NICKEL WINDOWS INSTALLER START ==="
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nickel directory is the parent of the scripts directory
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
+BUILD_DIR="${BUILD_DIR:-$SRC_DIR/out/Nickel}"
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
-BUILD_DIR="${BUILD_DIR:-out/Nickel}"
 
-echo "📦 Building Windows installer..."
+echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
+echo "DEBUG: NICKEL_DIR=$NICKEL_DIR"
+echo "DEBUG: SRC_DIR=$SRC_DIR"
+echo "DEBUG: BUILD_DIR=$BUILD_DIR"
+echo "DEBUG: VERSION=$VERSION"
+
+# Validation
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "ERROR: Build directory not found at $BUILD_DIR. Fatal."
+    exit 1
+fi
 
 # Create installer directory
-mkdir -p installer
+INSTALLER_DIR="installer"
+echo "LOG: Creating installer directory..."
+rm -rf "$INSTALLER_DIR"
+mkdir -p "$INSTALLER_DIR"
 
 # Copy build files
-cp -r "$BUILD_DIR"/* installer/
+echo "LOG: Copying build artifacts to installer dir..."
+cp -r "$BUILD_DIR"/* "$INSTALLER_DIR/"
 
 # Create NSIS installer script
+echo "LOG: Creating NSIS script..."
 cat > installer.nsi << EOF
 !define PRODUCT_NAME "Nickel Browser"
 !define PRODUCT_VERSION "$VERSION"
@@ -32,13 +53,9 @@ SetCompressor lzma
 ; MUI Settings
 !include "MUI.nsh"
 !define MUI_ABORTWARNING
-!define MUI_ICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
-!define MUI_UNICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
 
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME
-; License page
-!insertmacro MUI_PAGE_LICENSE "LICENSE"
 ; Directory page
 !insertmacro MUI_PAGE_DIRECTORY
 ; Instfiles page
@@ -52,8 +69,6 @@ SetCompressor lzma
 
 ; Language files
 !insertmacro MUI_LANGUAGE "English"
-
-; MUI end ----
 
 Name "\${PRODUCT_NAME} \${PRODUCT_VERSION}"
 OutFile "NickelBrowser-\${PRODUCT_VERSION}-windows-x64.exe"
@@ -84,16 +99,6 @@ Section -Post
   WriteRegStr HKLM "\${PRODUCT_UNINST_KEY}" "Publisher" "\${PRODUCT_PUBLISHER}"
 SectionEnd
 
-Function un.onUninstSuccess
-  HideWindow
-  MessageBox MB_ICONINFORMATION|MB_OK "Nickel Browser was successfully removed from your computer."
-FunctionEnd
-
-Function un.onInit
-  MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "Are you sure you want to completely remove Nickel Browser?" IDYES +2
-  Abort
-FunctionEnd
-
 Section Uninstall
   Delete "\$INSTDIR\uninst.exe"
   Delete "\$SMPROGRAMS\Nickel Browser\Nickel Browser.lnk"
@@ -108,12 +113,12 @@ SectionEnd
 EOF
 
 # Build installer with NSIS
-makensis installer.nsi 2>/dev/null || echo "NSIS not available, creating ZIP fallback"
-
-# Fallback to ZIP if NSIS unavailable
-if [ ! -f "NickelBrowser-${VERSION}-windows-x64.exe" ]; then
-    zip -r "NickelBrowser-${VERSION}-windows-x64.zip" installer/
-    echo "✅ ZIP package created (NSIS unavailable)"
+echo "LOG: Running makensis..."
+if command -v makensis &> /dev/null; then
+    makensis installer.nsi
 else
-    echo "✅ Windows installer created: NickelBrowser-${VERSION}-windows-x64.exe"
+    echo "WARNING: NSIS not available. Creating ZIP fallback."
+    zip -r "NickelBrowser-${VERSION}-windows-x64.zip" "$INSTALLER_DIR/"
 fi
+
+echo "=== [$(date +'%Y-%m-%dT%H:%M:%S')] NICKEL WINDOWS INSTALLER COMPLETE ==="
