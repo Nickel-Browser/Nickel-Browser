@@ -54,6 +54,7 @@ jobs:
       uc_version: ${{ steps.check.outputs.uc_version }}
       should_build: ${{ steps.check.outputs.should_build }}
       build_date: ${{ steps.date.outputs.date }}
+      nickel_version: ${{ steps.version.outputs.nickel_version }}
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -80,7 +81,8 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" | jq -r '.tag_name')
+          # Use portablelinux repo for stable version tracking
+          LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-portablelinux/releases/latest" | jq -r '.tag_name')
 
           # Priority: Manual input > API Latest
           INPUT_VERSION="${{ github.event.inputs.chromium_version }}"
@@ -200,6 +202,17 @@ jobs:
           fi
           echo "✅ All artifact validations passed"
 
+      - name: 📝 Sign Linux Artifacts (GPG)
+        if: runner.os == 'Linux' && secrets.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import --passphrase "$GPG_PASSPHRASE" 2>/dev/null || true
+          for f in dist/*.{deb,AppImage}; do
+            [ -f "$f" ] && gpg --armor --detach-sign --passphrase "$GPG_PASSPHRASE" "$f" || true
+          done
+
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -274,7 +287,8 @@ jobs:
           for pattern in *.dmg; do
             if ls $pattern 1>/dev/null 2>&1; then
               for f in $pattern; do
-                size=$(stat -f%z "$f")
+                # Use macOS-compatible stat or find to get file size
+                size=$(stat -f%z "$f" 2>/dev/null || find "$f" -printf "%s" 2>/dev/null || stat -c%s "$f")
                 if [ "$size" -lt 10000000 ]; then
                   echo "❌ ERROR: File $f is too small ($size bytes). Package may be corrupted."
                   exit 1
@@ -291,6 +305,20 @@ jobs:
             exit 1
           fi
           echo "✅ All artifact validations passed"
+
+      - name: 🍎 Sign macOS Artifacts
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Sign DMG
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        run: |
+          codesign --force --deep --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+            --options runtime dist/*.dmg
+          echo "✅ macOS artifact signed"
 
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -392,6 +420,21 @@ jobs:
           fi
           echo "✅ All artifact validations passed"
 
+      - name: 🪟 Sign Windows Artifacts
+        if: runner.os == 'Windows' && secrets.CODESIGN_CERTIFICATE_BASE64 != ''
+        env:
+          CODESIGN_CERTIFICATE_BASE64: ${{ secrets.CODESIGN_CERTIFICATE_BASE64 }}
+          CODESIGN_PASSWORD: ${{ secrets.CODESIGN_PASSWORD }}
+          TIMESTAMP_SERVER: "http://timestamp.digicert.com"
+        shell: pwsh
+        run: |
+          $certPath = "$env:TEMP\cert.pfx"
+          [System.IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:CODESIGN_CERTIFICATE_BASE64))
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            signtool sign /f $certPath /p $env:CODESIGN_PASSWORD /tr $env:TIMESTAMP_SERVER /td sha256 /fd sha256 $_.FullName
+            Write-Host "✅ Signed: $($_.Name)"
+          }
+
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -406,11 +449,16 @@ jobs:
     name: 🚀 Create Production Release
     needs: [prepare, build-linux, build-macos, build-windows]
     if: |
-      always() &&
+      always() && !cancelled() &&
       needs.prepare.outputs.should_build == 'true' &&
       (needs.build-linux.result == 'success' || needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: 📥 Download All Artifacts
         uses: actions/download-artifact@v4
         with:
