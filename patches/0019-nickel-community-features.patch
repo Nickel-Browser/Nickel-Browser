@@ -11,6 +11,7 @@ This patch adds Nickel Browser UI features:
 - about:nickel page
 
 ---
+ chrome/browser/ui/BUILD.gn | 10 ++++++++++
  chrome/browser/ui/nickel/nickel_dashboard.cc | 245 ++++++++++++++++++++++++++++
  chrome/browser/ui/nickel/nickel_dashboard.h |  89 ++++++++++
  chrome/browser/ui/nickel/vertical_tabs.cc | 178 ++++++++++++++++++++
@@ -19,7 +20,25 @@ This patch adds Nickel Browser UI features:
  chrome/browser/ui/nickel/workspace_manager.h |  89 ++++++++++
  chrome/browser/ui/nickel/split_view.cc | 145 +++++++++++++++
  chrome/browser/ui/nickel/split_view.h |  78 ++++++++
- 8 files changed, 1092 insertions(+)
+ 9 files changed, 1102 insertions(+)
+
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+index 1234567..abcdefg 100644
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -300,6 +300,14 @@ static_library("ui") {
+     "webui/webui_util.h",
++    "nickel/nickel_dashboard.cc",
++    "nickel/nickel_dashboard.h",
++    "nickel/vertical_tabs.cc",
++    "nickel/vertical_tabs.h",
++    "nickel/workspace_manager.cc",
++    "nickel/workspace_manager.h",
++    "nickel/split_view.cc",
++    "nickel/split_view.h",
+   ]
+
+   if (is_linux) {
 
 diff --git a/chrome/browser/ui/nickel/nickel_dashboard.cc b/chrome/browser/ui/nickel/nickel_dashboard.cc
 new file mode 100644
@@ -1052,5 +1071,5 @@ index 0000000..1234567
 +}  // namespace nickel
 +
 +#endif  // CHROME_BROWSER_UI_NICKEL_SPLIT_VIEW_H_
--- 
++--
 2.40.0

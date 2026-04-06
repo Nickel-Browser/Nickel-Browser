@@ -69,13 +69,24 @@ echo "🔧 Applying Nickel Browser patches..."
 
 # Apply Nickel patches in order
 NICKEL_PATCHES=(
+    "0001-remove-google-api-keys.patch"
     "0002-disable-safe-browsing-ping.patch"
     "0003-disable-webrtc-leak.patch"
+    "0004-disable-crash-reporter.patch"
+    "0005-disable-metrics-upload.patch"
+    "0006-disable-field-trials-seed.patch"
+    "0007-spoof-useragent-nickel.patch"
+    "0008-remove-google-update.patch"
     "0009-nickel-branding.patch"
+    "0010-nickel-newtab.patch"
     "0011-nickel-adblock-engine.patch"
     "0012-nickel-fingerprint-protection.patch"
     "0013-nickel-tor-private-window.patch"
     "0014-nickel-vpn-layer.patch"
+    "0015-nickel-natural-language-fixer.patch"
+    "0016-nickel-autoupdate-chromium-sync.patch"
+    "0017-nickel-youtube-deep-adblock.patch"
+    "0018-nickel-keyboard-mouse-leak-block.patch"
     "0019-nickel-community-features.patch"
 )
 
