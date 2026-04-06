@@ -19,7 +19,9 @@ runs:
       id: setup-depot-tools
       run: |
         if [[ "${{ inputs.os }}" == "windows" ]]; then
-          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "C:/depot_tools"
+          if [ ! -d "C:/depot_tools" ]; then
+            git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "C:/depot_tools"
+          fi
           echo "C:/depot_tools" >> $GITHUB_PATH
           echo "path=C:/depot_tools" >> $GITHUB_OUTPUT
         else

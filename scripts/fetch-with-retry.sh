@@ -36,6 +36,8 @@ if [ ! -d "src" ]; then
         echo "🗑️  Removing stale .gclient file..."
         rm .gclient
     fi
+    # Also remove any partial src if it exists
+    rm -rf src
     fetch_with_retry fetch --nohooks --no-history chromium
 fi
 
