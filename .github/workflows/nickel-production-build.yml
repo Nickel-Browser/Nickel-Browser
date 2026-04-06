@@ -140,7 +140,7 @@ jobs:
 
       - name: 💾 Maximize Disk Space (Linux Only)
         if: matrix.label == 'linux'
-        uses: easimon/maximize-build-space@fc881a6403e77465643f11bc07ee2d2469460246 # v10
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 8192
           swap-size-mb: 4096
@@ -157,10 +157,10 @@ jobs:
 
       - name: 🛠️ Setup MSVC (Windows Only)
         if: matrix.label == 'windows'
-        uses: ilammy/msvc-dev-cmd@7315a948449b89c006216481a84cd895548590d3 # v1.12.1
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: 🔄 Cache Chromium Source
-        uses: actions/cache@13f13d13c71c883d9840d5b195aeb72cbc275f33 # v4.0.0
+        uses: actions/cache@v4
         id: chromium-cache
         with:
           path: ${{ env.NICKEL_DIR }}
