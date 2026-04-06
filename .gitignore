@@ -1,0 +1,66 @@
+# Build outputs
+out/
+out_*/
+build/
+*.deb
+*.rpm
+*.AppImage
+*.tar.xz
+*.tar.gz
+*.dmg
+*.exe
+*.msi
+*.zip
+
+# Chromium source
+nickel-src/
+nickel-build/
+chromium/
+src/chromium/
+
+# Packaging artifacts
+packaging/
+*.deb
+*.rpm
+installer/
+AppDir/
+*.AppImage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# GPG keys (never commit!)
+*.gpg
+*.asc
+*.key
+
+# Cache
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+.env.local
+
+# depot_tools
+depot_tools/
