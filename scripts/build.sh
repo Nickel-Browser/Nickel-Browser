@@ -30,9 +30,10 @@ fi
 # Apply patches if not already applied
 if [ ! -f "$SRC_DIR/.nickel_patches_applied" ]; then
     echo "🔧 Applying Nickel patches..."
-    cd "$NICKEL_DIR"
-    ./nickel/scripts/apply-patches.sh
-    touch "$SRC_DIR/.nickel_patches_applied"
+    # If NICKEL_DIR is not set, assume standard location
+    NICKEL_DIR="${NICKEL_DIR:-$HOME/nickel-build/nickel}"
+    bash "$NICKEL_DIR/scripts/apply_patches.sh"
+    bash "$NICKEL_DIR/scripts/apply_nickel_branding.sh"
 else
     echo "✅ Patches already applied"
 fi
@@ -112,8 +113,8 @@ echo "   CPU cores: $CPU_CORES"
 echo "   Parallel jobs: $JOBS"
 echo ""
 
-# Use tmux for build session
-if command -v tmux &> /dev/null; then
+# Use tmux for build session (disabled in CI)
+if command -v tmux &> /dev/null && [ -z "$GITHUB_ACTIONS" ]; then
     if tmux has-session -t nickel-build 2>/dev/null; then
         echo "⚠️  tmux session 'nickel-build' already exists"
         echo "   Attach with: tmux attach -t nickel-build"
@@ -146,8 +147,13 @@ if command -v tmux &> /dev/null; then
     tmux attach -t nickel-build
 else
     # Build without tmux
-    echo "🔨 Building with ninja -j$JOBS..."
-    ninja -C out/Nickel chrome -j$JOBS
+    echo "🔨 Building with autoninja -j$JOBS..."
+    # Use autoninja if available (standard for Chromium)
+    if command -v autoninja &> /dev/null; then
+        autoninja -C out/Nickel chrome -j$JOBS
+    else
+        ninja -C out/Nickel chrome -j$JOBS
+    fi
 fi
 
 echo ""

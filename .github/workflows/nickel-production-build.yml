@@ -98,8 +98,8 @@ jobs:
     name: 🐧 Build Linux Packages
     needs: check-chromium-updates
     if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest-16-core
-    timeout-minutes: 720  # 12 hours
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours (GitHub free tier limit)
     outputs:
       deb_package: ${{ steps.package.outputs.deb }}
       rpm_package: ${{ steps.package.outputs.rpm }}
@@ -119,6 +119,7 @@ jobs:
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
           df -h
       
       - name: 🛠️ Install Build Dependencies
@@ -144,7 +145,9 @@ jobs:
         uses: actions/cache@v4
         id: chromium-cache
         with:
-          path: ~/nickel-src
+          path: |
+            ~/nickel-src
+            ~/nickel-src/src/out
           key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-${{ runner.os }}
           restore-keys: |
             chromium-${{ needs.check-chromium-updates.outputs.current_version }}-${{ runner.os }}
@@ -159,7 +162,7 @@ jobs:
           cd src
           gclient sync --with_branch_heads --with_tags -D
           gclient runhooks
-        timeout-minutes: 180
+        timeout-minutes: 240
       
       - name: 🔧 Apply Ungoogled-Chromium Patches
         run: |
@@ -177,47 +180,10 @@ jobs:
       - name: 🎨 Apply Nickel Browser Patches
         run: |
           export PATH="$HOME/depot_tools:$PATH"
-          cd ~/nickel-src/src
-          
-          # Copy Nickel overlay
-          cp -r ${{ github.workspace }} nickel_overlay
-          
-          # Apply ALL Nickel patches in order
-          PATCHES=(
-            "0001-remove-google-api-keys"
-            "0002-disable-safe-browsing-ping"
-            "0003-disable-webrtc-leak"
-            "0004-disable-crash-reporter"
-            "0005-disable-metrics-upload"
-            "0006-disable-field-trials-seed"
-            "0007-spoof-useragent-nickel"
-            "0008-remove-google-update"
-            "0009-nickel-branding"
-            "0010-nickel-newtab"
-            "0011-nickel-adblock-engine"
-            "0012-nickel-fingerprint-protection"
-            "0013-nickel-tor-private-window"
-            "0014-nickel-vpn-layer"
-            "0015-nickel-natural-language-fixer"
-            "0016-nickel-autoupdate-chromium-sync"
-            "0017-nickel-youtube-deep-adblock"
-            "0018-nickel-keyboard-mouse-leak-block"
-            "0019-nickel-community-features"
-          )
-          
-          for patch in "${PATCHES[@]}"; do
-            echo "Applying $patch..."
-            if [ -f "nickel_overlay/patches/$patch.patch" ]; then
-              patch -p1 < "nickel_overlay/patches/$patch.patch" || echo "Warning: $patch may have already been applied"
-            fi
-          done
-      
-      - name: 🎨 Apply Nickel Branding
-        run: |
-          cd ~/nickel-src/src
-          cp -r nickel_overlay/src/nickel/chrome/browser/nickel/ chrome/browser/ 2>/dev/null || true
-          cp -r nickel_overlay/src/nickel/chrome/browser/ui/nickel/ chrome/browser/ui/ 2>/dev/null || true
-          cp -r nickel_overlay/src/nickel/branding/* chrome/app/theme/ 2>/dev/null || true
+          export SRC_DIR=~/nickel-src/src
+          export NICKEL_DIR=${{ github.workspace }}
+          bash $NICKEL_DIR/scripts/apply_patches.sh
+          bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
       
       - name: ⚙️ Generate Build Configuration
         run: |
@@ -236,14 +202,6 @@ jobs:
           google_api_key=""
           google_default_client_id=""
           google_default_client_secret=""
-          enable_tor=true
-          enable_vpn=true
-          enable_nickel_shield=true
-          enable_fingerprint_protection=true
-          enable_nickel_community_features=true
-          enable_update_check=true
-          enable_webrtc_protection=true
-          enable_keyboard_mouse_protection=true
           use_lld=true
           v8_enable_backtrace=true
           EOF
@@ -252,9 +210,10 @@ jobs:
       - name: 🔨 Build Nickel Browser
         run: |
           export PATH="$HOME/depot_tools:$PATH"
-          cd ~/nickel-src/src
-          autoninja -C out/Nickel chrome
-        timeout-minutes: 480
+          export SRC_DIR=~/nickel-src/src
+          export NICKEL_DIR=${{ github.workspace }}
+          bash $NICKEL_DIR/scripts/build.sh
+        timeout-minutes: 300
       
       - name: 🧪 Run Smoke Tests
         run: |
@@ -268,28 +227,28 @@ jobs:
           cd ~/nickel-src/src
           
           VERSION="${{ needs.check-chromium-updates.outputs.new_version }}"
-          NICKEL_VER="${{ env.NICKEL_VERSION }}"
+          export NICKEL_VERSION="${{ env.NICKEL_VERSION }}"
           
           # Create packaging directory
           mkdir -p packaging/NickelBrowser
           cp -r out/Nickel/* packaging/NickelBrowser/
           
           # Build .deb package
-          bash nickel_overlay/scripts/build-deb.sh
-          DEB_FILE="nickel-browser_${NICKEL_VER}_amd64.deb"
-          mv packaging/*.deb "$DEB_FILE" 2>/dev/null || true
+          bash ${{ github.workspace }}/scripts/build-deb.sh
+          DEB_FILE="nickel-browser_${NICKEL_VERSION}_amd64.deb"
+          mv *.deb "$DEB_FILE" 2>/dev/null || true
           echo "deb=$DEB_FILE" >> $GITHUB_OUTPUT
           
           # Build .rpm package
-          bash nickel_overlay/scripts/build-rpm.sh || true
-          RPM_FILE="nickel-browser-${NICKEL_VER}.x86_64.rpm"
-          mv packaging/*.rpm "$RPM_FILE" 2>/dev/null || true
+          bash ${{ github.workspace }}/scripts/build-rpm.sh || true
+          RPM_FILE="nickel-browser-${NICKEL_VERSION}.x86_64.rpm"
+          mv *.rpm "$RPM_FILE" 2>/dev/null || true
           echo "rpm=$RPM_FILE" >> $GITHUB_OUTPUT
           
           # Build AppImage
-          bash nickel_overlay/scripts/build-appimage.sh
-          APPIMAGE_FILE="NickelBrowser-${NICKEL_VER}.AppImage"
-          mv packaging/*.AppImage "$APPIMAGE_FILE" 2>/dev/null || true
+          bash ${{ github.workspace }}/scripts/build-appimage.sh
+          APPIMAGE_FILE="NickelBrowser-${NICKEL_VERSION}.AppImage"
+          mv *.AppImage "$APPIMAGE_FILE" 2>/dev/null || true
           echo "appimage=$APPIMAGE_FILE" >> $GITHUB_OUTPUT
           
           # Create .tar.xz
@@ -298,7 +257,7 @@ jobs:
           echo "tar=$TAR_FILE" >> $GITHUB_OUTPUT
           
           # Move to workspace for upload
-          mv *.deb *.rpm *.AppImage *.tar.xz ${{ github.workspace }}/ || true
+          mv *.deb *.rpm *.AppImage *.tar.xz ${{ github.workspace }}/ 2>/dev/null || true
       
       - name: 🔐 Sign Packages
         run: |
@@ -324,6 +283,7 @@ jobs:
             ${{ github.workspace }}/*.tar.xz
             ${{ github.workspace }}/*.asc
             ${{ github.workspace }}/*.sha256
+          if-no-files-found: warn
           retention-days: 30
 
   # ============================================================================
@@ -333,8 +293,8 @@ jobs:
     name: 🍎 Build macOS Package
     needs: check-chromium-updates
     if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-13-xlarge
-    timeout-minutes: 720
+    runs-on: macos-latest
+    timeout-minutes: 360
     outputs:
       dmg_package: ${{ steps.package.outputs.dmg }}
     
@@ -358,8 +318,12 @@ jobs:
         uses: actions/cache@v4
         id: chromium-cache
         with:
-          path: ~/nickel-src
+          path: |
+            ~/nickel-src
+            ~/nickel-src/src/out
           key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-macos
+          restore-keys: |
+            chromium-
       
       - name: 📥 Fetch Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
@@ -372,18 +336,10 @@ jobs:
       - name: 🔧 Apply All Patches
         run: |
           export PATH="$HOME/depot_tools:$PATH"
-          cd ~/nickel-src/src
-          
-          # Ungoogled patches
-          git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git ../ungoogled-chromium
-          python3 ../ungoogled-chromium/utils/prune_binaries.py ./ ../ungoogled-chromium/pruning.list
-          python3 ../ungoogled-chromium/utils/patches.py apply ./ ../ungoogled-chromium/patches
-          
-          # Nickel patches
-          cp -r ${{ github.workspace }} nickel_overlay
-          for patch in nickel_overlay/patches/*.patch; do
-            patch -p1 < "$patch" || true
-          done
+          export SRC_DIR=~/nickel-src/src
+          export NICKEL_DIR=${{ github.workspace }}
+          bash $NICKEL_DIR/scripts/apply_patches.sh
+          bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
       
       - name: 🔨 Build
         run: |
@@ -396,7 +352,7 @@ jobs:
         id: package
         run: |
           cd ~/nickel-src/src
-          bash nickel_overlay/scripts/build-dmg.sh || true
+          bash ${{ github.workspace }}/scripts/build-dmg.sh || true
           DMG_FILE="NickelBrowser-${{ env.NICKEL_VERSION }}-macos.dmg"
           mv out/Nickel/*.dmg "$DMG_FILE" 2>/dev/null || true
           echo "dmg=$DMG_FILE" >> $GITHUB_OUTPUT
@@ -416,6 +372,7 @@ jobs:
         with:
           name: nickel-macos-package
           path: ${{ github.workspace }}/*.dmg
+          if-no-files-found: warn
           retention-days: 30
 
   # ============================================================================
@@ -425,8 +382,8 @@ jobs:
     name: 🪟 Build Windows Package
     needs: check-chromium-updates
     if: needs.check-chromium-updates.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest-16-core
-    timeout-minutes: 720
+    runs-on: windows-latest
+    timeout-minutes: 360
     outputs:
       exe_package: ${{ steps.package.outputs.exe }}
     
@@ -451,8 +408,12 @@ jobs:
         uses: actions/cache@v4
         id: chromium-cache
         with:
-          path: ~/nickel-src
+          path: |
+            ~/nickel-src
+            ~/nickel-src/src/out
           key: chromium-${{ needs.check-chromium-updates.outputs.new_version }}-windows
+          restore-keys: |
+            chromium-
       
       - name: 📥 Fetch Chromium
         if: steps.chromium-cache.outputs.cache-hit != 'true'
@@ -463,14 +424,13 @@ jobs:
           cd src; gclient sync -D; gclient runhooks
       
       - name: 🔧 Apply All Patches
+        shell: bash
         run: |
-          $env:PATH = "$env:USERPROFILE\depot_tools;$env:PATH"
-          cd ~/nickel-src/src
-          git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git ../ungoogled-chromium
-          python3 ../ungoogled-chromium/utils/prune_binaries.py ./ ../ungoogled-chromium/pruning.list
-          python3 ../ungoogled-chromium/utils/patches.py apply ./ ../ungoogled-chromium/patches
-          Copy-Item -Recurse ${{ github.workspace }} nickel_overlay
-          Get-ChildItem nickel_overlay/patches/*.patch | ForEach-Object { patch -p1 --input=$_.FullName }
+          export PATH="$USERPROFILE/depot_tools:$PATH"
+          export SRC_DIR=~/nickel-src/src
+          export NICKEL_DIR=${{ github.workspace }}
+          bash $NICKEL_DIR/scripts/apply_patches.sh
+          bash $NICKEL_DIR/scripts/apply_nickel_branding.sh
       
       - name: 🔨 Build
         run: |
@@ -483,7 +443,7 @@ jobs:
         id: package
         run: |
           cd ~/nickel-src/src
-          bash nickel_overlay/scripts/build-windows-installer.sh
+          bash ${{ github.workspace }}/scripts/build-windows-installer.sh
           $EXE_FILE = "NickelBrowser-${{ env.NICKEL_VERSION }}-windows-x64.exe"
           Move-Item out/Nickel/*.exe $EXE_FILE -ErrorAction SilentlyContinue
           "exe=$EXE_FILE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -503,6 +463,7 @@ jobs:
         with:
           name: nickel-windows-package
           path: ${{ github.workspace }}/*.exe
+          if-no-files-found: warn
           retention-days: 30
 
   # ============================================================================
@@ -573,9 +534,9 @@ jobs:
       - name: 📧 Send Email Notification
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
+          server_address: smtp.protonmail.ch
+          server_port: 587
+          username: sho.islam0311@proton.me
           password: ${{ secrets.SMTP_PASS }}
           subject: 🛡️ Nickel Browser Build Complete - ${{ needs.check-chromium-updates.outputs.new_version }}
           to: ${{ secrets.NOTIFY_EMAIL }}
