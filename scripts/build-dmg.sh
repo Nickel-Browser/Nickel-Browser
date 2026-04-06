@@ -48,12 +48,12 @@ cat > "$CONTENTS_DIR/Info.plist" << EOF
 EOF
 
 # Copy icon if exists
-cp src/nickel/branding/icon_256.png "$CONTENTS_DIR/Resources/" 2>/dev/null || true
+cp src/nickel/branding/product_logo_256.png "$CONTENTS_DIR/Resources/" 2>/dev/null || true
 
 # Create DMG
 create-dmg \
     --volname "Nickel Browser" \
-    --volicon "src/nickel/branding/icon_256.png" \
+    --volicon "src/nickel/branding/product_logo_256.png" \
     --window-pos 200 120 \
     --window-size 600 400 \
     --icon-size 100 \
