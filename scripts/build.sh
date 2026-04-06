@@ -108,19 +108,21 @@ if [ -n "$GITHUB_ACTIONS" ]; then
     # In CI, we want to maximize utilization but stay within limits
     JOBS=$(nproc)
     echo "🤖 CI environment detected. Using -j$JOBS."
+    CPU_CORES=$(nproc)
 else
     TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
     CPU_CORES=$(nproc)
 
     if [ "$TOTAL_RAM" -lt 8192 ]; then
-    JOBS=1
-    echo "💾 Low RAM detected (${TOTAL_RAM}MB). Using -j1 for stability."
-elif [ "$TOTAL_RAM" -lt 16384 ]; then
-    JOBS=2
-    echo "💾 Moderate RAM detected (${TOTAL_RAM}MB). Using -j2."
-else
-    JOBS=4
-    echo "💾 Good RAM detected (${TOTAL_RAM}MB). Using -j4."
+        JOBS=1
+        echo "💾 Low RAM detected (${TOTAL_RAM}MB). Using -j1 for stability."
+    elif [ "$TOTAL_RAM" -lt 16384 ]; then
+        JOBS=2
+        echo "💾 Moderate RAM detected (${TOTAL_RAM}MB). Using -j2."
+    else
+        JOBS=4
+        echo "💾 Good RAM detected (${TOTAL_RAM}MB). Using -j4."
+    fi
 fi
 
 echo "   CPU cores: $CPU_CORES"

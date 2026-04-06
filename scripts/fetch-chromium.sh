@@ -16,10 +16,15 @@ if ! command -v fetch &> /dev/null; then
     exit 1
 fi
 
-# Create working directory
-NICKEL_DIR="/media/sho_islam0311/New Volume1/"
-mkdir -p "/media/sho_islam0311/New Volume1/NICKEL_DIR"
-cd "/media/sho_islam0311/New Volume1/NICKEL_DIR"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default NICKEL_DIR if not set (where Chromium source will live)
+NICKEL_DIR="${NICKEL_DIR:-$HOME/nickel-src}"
+
+mkdir -p "$NICKEL_DIR"
+cd "$NICKEL_DIR"
 
 echo "📁 Working directory: $NICKEL_DIR"
 echo ""
