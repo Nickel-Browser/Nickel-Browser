@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# scripts/build-dmg.sh
+# Creates a macOS DMG from the downloaded ungoogled-chromium binary
+
+set -euo pipefail
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,69 +10,59 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
-BUILD_DIR="${BUILD_DIR:-out/Nickel}"
+BINARY_DIR="${BINARY_DIR:-$NICKEL_DIR/uc-binary}"
+DIST_DIR="${DIST_DIR:-$NICKEL_DIR/dist}"
 
-echo "📦 Building macOS .dmg package..."
+echo "📦 Building macOS DMG..."
 
-# Create app bundle structure
-APP_NAME="Nickel Browser.app"
-APP_DIR="$BUILD_DIR/$APP_NAME"
-CONTENTS_DIR="$APP_DIR/Contents"
+mkdir -p "$DIST_DIR"
 
-mkdir -p "$CONTENTS_DIR/MacOS"
-mkdir -p "$CONTENTS_DIR/Resources"
+# Find the Chromium DMG file downloaded
+DMG_FILE=$(find "$BINARY_DIR" -name "*.dmg" -type f | head -n 1)
 
-# Copy binary
-cp -r "$BUILD_DIR"/* "$CONTENTS_DIR/MacOS/"
-
-# Create Info.plist
-cat > "$CONTENTS_DIR/Info.plist" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDisplayName</key>
-    <string>Nickel Browser</string>
-    <key>CFBundleExecutable</key>
-    <string>chrome</string>
-    <key>CFBundleIdentifier</key>
-    <string>org.nickel-browser.app</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>Nickel Browser</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$VERSION</string>
-    <key>CFBundleVersion</key>
-    <string>$VERSION</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-</dict>
-</plist>
-EOF
-
-# Copy icon if exists
-cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$CONTENTS_DIR/Resources/" 2>/dev/null || true
-
-# Create DMG
-create-dmg \
-    --volname "Nickel Browser" \
-    --volicon "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" \
-    --window-pos 200 120 \
-    --window-size 600 400 \
-    --icon-size 100 \
-    --app-drop-link 450 185 \
-    --icon "$APP_NAME" 150 185 \
-    "NickelBrowser-${VERSION}.dmg" \
-    "$APP_DIR" 2>/dev/null || echo "Creating DMG with fallback method"
-
-# Fallback if create-dmg not available
-if [ ! -f "NickelBrowser-${VERSION}.dmg" ]; then
-    hdiutil create -volname "Nickel Browser" -srcfolder "$APP_DIR" -ov -format UDZO "NickelBrowser-${VERSION}.dmg"
+if [ -z "$DMG_FILE" ]; then
+    echo "❌ Error: Could not find a .dmg file in $BINARY_DIR"
+    exit 1
 fi
 
-echo "✅ .dmg package created: NickelBrowser-${VERSION}.dmg"
+echo "📍 Found DMG: $DMG_FILE"
+
+# Extract the DMG content to modify
+# We'll use hdiutil to mount it, copy it, and then modify it
+MOUNT_POINT="/Volumes/Chromium"
+hdiutil attach "$DMG_FILE" -mountpoint "$MOUNT_POINT" -quiet
+
+# Create a temporary directory for the app
+TMP_DIR=$(mktemp -d)
+cp -R "$MOUNT_POINT/"*.app "$TMP_DIR/Nickel Browser.app"
+hdiutil detach "$MOUNT_POINT" -quiet
+
+# Perform basic branding on the app bundle
+INFO_PLIST="$TMP_DIR/Nickel Browser.app/Contents/Info.plist"
+if [ -f "$INFO_PLIST" ]; then
+    echo "🎨 Updating Info.plist..."
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Nickel Browser'" "$INFO_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Nickel Browser'" "$INFO_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 'nickel-browser'" "$INFO_PLIST"
+fi
+
+# Rename the executable
+if [ -f "$TMP_DIR/Nickel Browser.app/Contents/MacOS/Chromium" ]; then
+    mv "$TMP_DIR/Nickel Browser.app/Contents/MacOS/Chromium" "$TMP_DIR/Nickel Browser.app/Contents/MacOS/nickel-browser"
+fi
+
+# Replace the icon if it exists
+# Typically it's app.icns
+if [ -f "$NICKEL_DIR/src/nickel/branding/nickel.icns" ]; then
+    echo "🎨 Replacing app icon..."
+    cp "$NICKEL_DIR/src/nickel/branding/nickel.icns" "$TMP_DIR/Nickel Browser.app/Contents/Resources/app.icns"
+fi
+
+# Create a new DMG from the modified app
+echo "📦 Creating final DMG..."
+hdiutil create -volname "Nickel Browser" -srcfolder "$TMP_DIR" -ov -format UDZO "$DIST_DIR/Nickel-Browser-${VERSION}-macos.dmg"
+
+# Cleanup
+rm -rf "$TMP_DIR"
+
+echo "✅ DMG prepared: Nickel-Browser-${VERSION}-macos.dmg"

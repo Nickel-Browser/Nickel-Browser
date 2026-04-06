@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# scripts/build-deb.sh
+# Creates a proper .deb package from the branded Nickel Browser binary
+
+set -euo pipefail
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,10 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
-BUILD_DIR="${BUILD_DIR:-out/Nickel}"
+BINARY_DIR="${BINARY_DIR:-$NICKEL_DIR/uc-binary}"
+# Target directory for package construction
 PACKAGE_DIR="packaging/deb"
 
-echo "📦 Building .deb package..."
+echo "📦 Building .deb package from binary $BINARY_DIR..."
 
 mkdir -p "$PACKAGE_DIR/DEBIAN"
 mkdir -p "$PACKAGE_DIR/opt/nickel-browser"
@@ -18,8 +22,22 @@ mkdir -p "$PACKAGE_DIR/usr/share/applications"
 mkdir -p "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$PACKAGE_DIR/usr/bin"
 
-# Copy binary
-cp -r "$BUILD_DIR"/* "$PACKAGE_DIR/opt/nickel-browser/"
+# Copy binary files
+# Find the Chromium root in the binary dir (it often has a subdir)
+CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome" -type f | xargs dirname | head -n 1)
+
+if [ -z "$CHROME_ROOT" ]; then
+    echo "❌ Error: Could not find 'chrome' binary in $BINARY_DIR"
+    exit 1
+fi
+
+echo "📍 CHROME_ROOT: $CHROME_ROOT"
+cp -r "$CHROME_ROOT"/* "$PACKAGE_DIR/opt/nickel-browser/"
+
+# Rename the main binary to nickel-browser for consistency
+if [ -f "$PACKAGE_DIR/opt/nickel-browser/chrome" ]; then
+    mv "$PACKAGE_DIR/opt/nickel-browser/chrome" "$PACKAGE_DIR/opt/nickel-browser/nickel-browser"
+fi
 
 # Create desktop entry
 cat > "$PACKAGE_DIR/usr/share/applications/nickel-browser.desktop" << 'EOF'
@@ -27,7 +45,7 @@ cat > "$PACKAGE_DIR/usr/share/applications/nickel-browser.desktop" << 'EOF'
 Version=1.0
 Name=Nickel Browser
 Comment=Block Everything. Leak Nothing. Own Your Web.
-Exec=/opt/nickel-browser/chrome %U
+Exec=/opt/nickel-browser/nickel-browser %U
 Icon=nickel-browser
 Type=Application
 Categories=Network;WebBrowser;
@@ -37,10 +55,12 @@ Terminal=false
 EOF
 
 # Copy icon
-cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png" 2>/dev/null || true
+if [ -f "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" ]; then
+    cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png"
+fi
 
 # Create symlink
-ln -sf /opt/nickel-browser/chrome "$PACKAGE_DIR/usr/bin/nickel-browser"
+ln -sf /opt/nickel-browser/nickel-browser "$PACKAGE_DIR/usr/bin/nickel-browser"
 
 # Control file
 cat > "$PACKAGE_DIR/DEBIAN/control" << EOF
@@ -49,7 +69,7 @@ Version: $VERSION
 Section: web
 Priority: optional
 Architecture: amd64
-Depends: libgtk-3-0, libnss3, libxss1, libasound2, libxtst6, libatk1.0-0, libxcomposite1, libxdamage1, libxrandr2, libxfixes3
+Depends: libgtk-3-0, libnss3, libxss1, libasound2, libxtst6, libatk1.0-0, libxcomposite1, libxdamage1, libxrandr2, libxfixes3, libdrm2, libgbm1
 Maintainer: Nickel Browser Team <team@nickel-browser.org>
 Description: Nickel Browser - Privacy-first Chromium fork
  Block Everything. Leak Nothing. Own Your Web.
