@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
 BUILD_DIR="${BUILD_DIR:-out/Nickel}"
 

@@ -11,7 +11,7 @@ echo ""
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nickel directory is the parent of the scripts directory
-NICKEL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # Default SRC_DIR if not set
 SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
 

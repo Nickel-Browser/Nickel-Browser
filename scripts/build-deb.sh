@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
 BUILD_DIR="${BUILD_DIR:-out/Nickel}"
 PACKAGE_DIR="packaging/deb"
@@ -32,7 +37,7 @@ Terminal=false
 EOF
 
 # Copy icon
-cp src/nickel/branding/product_logo_256.png "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png" 2>/dev/null || true
+cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png" 2>/dev/null || true
 
 # Create symlink
 ln -sf /opt/nickel-browser/chrome "$PACKAGE_DIR/usr/bin/nickel-browser"

@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
 BUILD_DIR="${BUILD_DIR:-out/Nickel}"
 
@@ -27,8 +32,8 @@ SetCompressor lzma
 ; MUI Settings
 !include "MUI.nsh"
 !define MUI_ABORTWARNING
-!define MUI_ICON "src/nickel/branding/icon.ico"
-!define MUI_UNICON "src/nickel/branding/icon.ico"
+!define MUI_ICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
+!define MUI_UNICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
 
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME

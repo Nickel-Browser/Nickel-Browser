@@ -252,7 +252,7 @@ jobs:
           echo "appimage=$APPIMAGE_FILE" >> $GITHUB_OUTPUT
           
           # Create .tar.xz
-          TAR_FILE="nickel-browser-${NICKEL_VER}-linux-x64.tar.xz"
+          TAR_FILE="nickel-browser-${NICKEL_VERSION}-linux-x64.tar.xz"
           tar -cJf "$TAR_FILE" -C packaging NickelBrowser
           echo "tar=$TAR_FILE" >> $GITHUB_OUTPUT
           
@@ -492,7 +492,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.NICKEL_VERSION }}+chromium.${{ needs.check-chromium-updates.outputs.new_version }}
+          tag_name: v${{ env.NICKEL_VERSION }}-${{ needs.check-chromium-updates.outputs.new_version }}
           name: 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }} (Chromium ${{ needs.check-chromium-updates.outputs.new_version }})
           body: |
             ## 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }}
@@ -641,8 +641,10 @@ jobs:
           format: html
       
       - name: 🌐 Trigger Website Update
+        if: success()
         run: |
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/pages/builds
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type": "build_complete"}'

@@ -11,9 +11,12 @@ echo ""
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nickel directory is the parent of the scripts directory
-NICKEL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # Default SRC_DIR if not set
 SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
+
+echo "📍 NICKEL_DIR: $NICKEL_DIR"
+echo "📍 SRC_DIR: $SRC_DIR"
 
 # Check directories
 if [ ! -d "$NICKEL_DIR" ]; then
@@ -53,10 +56,17 @@ if [ -d "$UNGOOGLED_DIR" ]; then
     # Apply patches
     if [ -d "$UNGOOGLED_DIR/patches" ]; then
         echo "🔧 Applying ungoogled patches..."
+        # Using quilt-style approach for ungoogled patches is often better, but let's stick to git apply for now
+        # but avoid failures on already applied patches
         for patch in "$UNGOOGLED_DIR/patches"/*.patch; do
             if [ -f "$patch" ]; then
                 echo "  Applying: $(basename $patch)"
-                git apply "$patch" || echo "    ⚠️  Skipped (may already be applied)"
+                git apply --check "$patch" > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    git apply "$patch" && echo "    ✅ Applied"
+                else
+                    echo "    ⚠️  Skipped (already applied or conflict)"
+                fi
             fi
         done
     fi
