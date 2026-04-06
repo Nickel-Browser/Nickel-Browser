@@ -1,0 +1,117 @@
+name: 🏗️ Nickel Browser Source Build (Manual)
+
+# Nickel Browser Source Build Workflow
+# For full Chromium source compilation on self-hosted runners.
+# WARNING: Requires 32GB+ RAM, 250GB+ SSD, and 8+ cores.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chromium_version:
+        description: 'Chromium version to build'
+        required: true
+        default: '124.0.6367.82'
+      clean_build:
+        description: 'Perform a clean build (delete previous source)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  NICKEL_VERSION: "1.0.0-alpha"
+
+jobs:
+  build-linux-source:
+    name: 🐧 Build Linux from Source
+    runs-on: [self-hosted, linux, nickel-builder]
+    timeout-minutes: 600
+    env:
+      NICKEL_DIR: /opt/nickel-src
+      SRC_DIR: /opt/nickel-src/src
+    steps:
+      - name: 📥 Checkout Nickel Browser
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl wget python3 ninja-build pkg-config build-essential \
+            libglib2.0-dev libgtk-3-dev libpulse-dev libasound2-dev libdbus-1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxdamage-dev libxfixes-dev \
+            libxi-dev libxrandr-dev libxss-dev libxtst-dev libatk1.0-dev libcups2-dev \
+            libdrm-dev mesa-common-dev libgbm-dev libssl-dev libnss3-dev jq gperf bison
+
+      - name: 📦 Setup Depot Tools
+        run: |
+          if [ ! -d "$HOME/depot_tools" ]; then
+            git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+          fi
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
+
+      - name: 📥 Fetch Chromium Source
+        run: |
+          mkdir -p ${{ env.NICKEL_DIR }}
+          cd ${{ env.NICKEL_DIR }}
+          if [ "${{ github.event.inputs.clean_build }}" = "true" ]; then
+            rm -rf src .gclient .gclient_entries
+          fi
+          if [ ! -d "src" ]; then
+            fetch --nohooks --no-history chromium
+          fi
+          cd src
+          git fetch origin tag ${{ github.event.inputs.chromium_version }} --no-tags
+          git checkout ${{ github.event.inputs.chromium_version }}
+          gclient sync --with_branch_heads --with_tags -D --no-history
+          gclient runhooks
+
+      - name: 🔧 Apply Patches & Branding
+        run: |
+          export SRC_DIR=${{ env.SRC_DIR }}
+          export NICKEL_DIR=${{ github.workspace }}
+          bash "$NICKEL_DIR/scripts/apply_patches.sh"
+          bash "$NICKEL_DIR/scripts/apply_nickel_branding.sh"
+
+      - name: ⚙️ Generate Build Configuration
+        run: |
+          cd ${{ env.SRC_DIR }}
+          mkdir -p out/Release
+          cat > out/Release/args.gn << 'EOF'
+          is_official_build = true
+          is_debug = false
+          symbol_level = 0
+          enable_nacl = false
+          proprietary_codecs = true
+          ffmpeg_branding = "Chrome"
+          use_lld = true
+          use_thin_lto = true
+          optimize_for_size = true
+          is_cfi = true
+          EOF
+          gn gen out/Release
+
+      - name: 🔨 Build Nickel Browser
+        run: |
+          cd ${{ env.SRC_DIR }}
+          ninja -C out/Release chrome
+
+      - name: 📦 Package Artifacts
+        run: |
+          export NICKEL_VERSION="${{ env.NICKEL_VERSION }}"
+          export BUILD_DIR="${{ env.SRC_DIR }}/out/Release"
+          bash scripts/build-deb.sh
+          bash scripts/build-appimage.sh
+          mkdir -p dist
+          mv *.deb *.AppImage dist/
+          cd dist
+          sha256sum * > checksums-source.sha256
+
+      - name: 📤 Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nickel-source-linux-${{ github.event.inputs.chromium_version }}
+          path: dist/
+          retention-days: 7
