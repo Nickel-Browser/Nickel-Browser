@@ -1,0 +1,30 @@
+name: 'Setup Chromium Environment'
+description: 'Installs dependencies and sets up depot_tools'
+inputs:
+  os:
+    description: 'Operating system (linux/macos/windows)'
+    required: true
+outputs:
+  depot-tools-path:
+    description: 'Path to depot_tools'
+    value: ${{ steps.setup-depot-tools.outputs.path }}
+runs:
+  using: 'composite'
+  steps:
+    - name: 🛠️ Install Dependencies
+      run: bash scripts/install-deps-${{ inputs.os }}.sh
+      shell: bash
+
+    - name: 📦 Setup Depot Tools
+      id: setup-depot-tools
+      run: |
+        if [[ "${{ inputs.os }}" == "windows" ]]; then
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git C:\depot_tools
+          echo "C:\depot_tools" >> $GITHUB_PATH
+          echo "path=C:\depot_tools" >> $GITHUB_OUTPUT
+        else
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
+          echo "path=$HOME/depot_tools" >> $GITHUB_OUTPUT
+        fi
+      shell: bash

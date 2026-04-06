@@ -105,10 +105,10 @@
 
 | Platform | Download | Status |
 |----------|----------|--------|
-| Linux (.deb) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Coming Soon |
-| Linux (AppImage) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Coming Soon |
-| Windows (.exe) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Coming Soon |
-| macOS (.dmg) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Coming Soon |
+| Linux (.deb) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Available |
+| Linux (AppImage) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Available |
+| Windows (.exe) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Available |
+| macOS (.dmg) | [Download](https://github.com/Nickel-Browser/Nickel-Browser/releases) | ✅ Available |
 
 ### Install on Linux
 

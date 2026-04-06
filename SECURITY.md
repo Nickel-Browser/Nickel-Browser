@@ -1,101 +1,71 @@
-# Security Policy
+# Nickel Browser Security Policy
 
-## 🔒 Our Security Commitment
+## 🛡️ Our Security Commitment
 
-Nickel Browser is built with security as a foundational principle. We believe in:
-- **Transparency**: Open source means anyone can audit our code
-- **Rapid Response**: Security issues are addressed with highest priority
-- **No Secrets**: No security through obscurity
-- **User First**: User safety over convenience
-
-## 🛡️ Security Features
-
-Nickel Browser includes these security protections by default:
-
-- HTTPS-Only Mode
-- DNS-over-HTTPS (Quad9)
-- Certificate Transparency enforcement
-- First-party isolation
-- Site isolation
-- WebRTC leak protection
-- Fingerprint randomization
-- Tor private tabs
-- Built-in ad/malware blocking
-
-## 📢 Reporting Security Vulnerabilities
-
-**Please DO NOT open public issues for security vulnerabilities.**
-
-Instead, report privately:
-
-### Method 1: Email (Preferred)
-Send details to: **security@nickel-browser.org**
-
-Include:
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if any)
-- Your contact information for follow-up
-
-### Method 2: GitHub Private Vulnerability Reporting
-1. Go to [Security Advisories](https://discord.gg/fBebZDbEhH/security/advisories)
-2. Click "New draft security advisory"
-3. Fill in the details
-
-## ⏱️ Response Timeline
-
-| Stage | Timeline |
-|-------|----------|
-| Initial response | Within >48 hours |
-| Vulnerability assessment | Within 7 days |
-| Patch development | Based on severity |
-| Public disclosure | After patch release |
-
-## 🏆 Security Hall of Fame
-
-We publicly acknowledge security researchers who responsibly disclose vulnerabilities:
-
-| Researcher | Vulnerability | Date |
-|------------|---------------|------|
-| *Your name here* | - | - |
-
-## 🔄 Security Update Process
-
-1. **Critical**: Emergency release within When I Got time Cause i am Single Dev So.
-2. **High**: Next scheduled release
-3. **Medium/Low**: Bundled with regular updates
-
-## 🧪 Security Testing
-
-We encourage:
-- Penetration testing
-- Code audits
-- Fuzzing
-- Static analysis
-
-## 📋 Security Checklist for Contributors
-
-When contributing code, ensure:
-- [ ] No hardcoded secrets or API keys
-- [ ] Input validation on all user inputs
-- [ ] No unnecessary network requests
-- [ ] Proper memory management (no leaks)
-- [ ] No bypass of security policies
-- [ ] Tests include security scenarios
-
-## 🔗 External Security Resources
-
-- [Chromium Security](https://www.chromium.org/Home/chromium-security/)
-- [OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/)
-- [CVE Database](https://cve.mitre.org/)
-
-## 📞 Contact
-
-For security matters only: sho.islam0311@proton.me
-
-For general questions: Use GitHub Discussions or Discord
+Nickel Browser is built on the foundation of **Security through Transparency**. As a community-driven fork of ungoogled-chromium, we prioritize user safety by eliminating all proprietary Google components and applying rigorous hardening patches.
 
 ---
 
-Thank you for helping keep Nickel Browser and its users secure! 🪙🛡️
+## 🔍 Supply Chain Security
+
+We implement several modern security standards to ensure the integrity of our builds:
+
+### 1. SBOM (Software Bill of Materials)
+Every Nickel Browser production release includes a machine-readable **SBOM (SPDX JSON)** file. This allows security professionals and automated tools to:
+- Inventory all included libraries and dependencies.
+- Track known vulnerabilities (CVEs) across the entire stack.
+- Verify license compliance.
+
+### 2. Binary Integrity
+To prevent tampering during transit, we provide:
+- **SHA256 Checksums**: Included for every release asset.
+- **Digital Signatures**:
+  - **Linux**: GPG-signed detached signatures (`.sig`).
+  - **macOS**: Apple Developer-signed DMG with Gatekeeper notarization.
+  - **Windows**: EV Code Signed executables to ensure SmartScreen trust.
+
+---
+
+## 🐛 Reporting a Vulnerability
+
+If you discover a security vulnerability in Nickel Browser, please help us fix it by reporting it responsibly.
+
+### 📧 Reporting Process
+- **Email**: Send your findings to [sho.islam0311@proton.me](mailto:sho.islam0311@proton.me).
+- **Format**: Please include:
+  - A clear description of the vulnerability.
+  - Steps to reproduce (POC).
+  - Potential impact.
+  - Recommended fix (if known).
+
+### ⏳ Response Timeline
+1. **Acknowledgement**: We aim to acknowledge your report within **24 hours**.
+2. **Triaging**: We will confirm the vulnerability and assess its severity within **48 hours**.
+3. **Resolution**: We strive to fix critical vulnerabilities within **7 days** and issue a security advisory.
+
+---
+
+## 🔒 Security Features
+
+Nickel Browser includes several native security enhancements:
+
+- **NickelShield**: Our high-performance, C++ based ad-blocking engine that stops malicious scripts before they execute.
+- **NickelVault**: Advanced fingerprinting protection that introduces noise into WebGL, Canvas, and Audio APIs to prevent cross-site tracking.
+- **Zero-Google Policy**: No Google Safe Browsing, no Metrics, no Field Trials, and no Google Update. We use locally-hosted or community-vetted alternatives.
+- **HTTPS-Only**: Forced secure connections for all websites by default.
+
+---
+
+## 📜 Acknowledgments
+
+Nickel Browser relies on the incredible work of the security community:
+- [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium)
+- [Tor Project](https://torproject.org)
+- [GnuPG](https://gnupg.org)
+- [uBlock Origin](https://github.com/gorhill/uBlock)
+
+---
+
+<p align="center">
+  <em>For more details on building securely from source, see our [BUILD.md](docs/BUILD.md).</em>
+</p>

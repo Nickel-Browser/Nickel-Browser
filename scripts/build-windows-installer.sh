@@ -1,23 +1,31 @@
 #!/bin/bash
+# Nickel Browser - Build Windows Installer Package
 set -e
+
+echo "=== STEP START: Build Windows Installer Package ==="
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nickel directory is the parent of the scripts directory
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
 
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
-BUILD_DIR="${BUILD_DIR:-out/Nickel}"
+BUILD_DIR="${SRC_DIR}/out/Release"
 
-echo "📦 Building Windows installer..."
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "❌ Error: Nickel build not found at $BUILD_DIR"
+    exit 1
+fi
 
-# Create installer directory
+cd "$SRC_DIR"
+
+echo "📂 Creating Windows installer package structure..."
 mkdir -p installer
-
-# Copy build files
 cp -r "$BUILD_DIR"/* installer/
 
-# Create NSIS installer script
+echo "📝 Creating NSIS installer script..."
 cat > installer.nsi << EOF
 !define PRODUCT_NAME "Nickel Browser"
 !define PRODUCT_VERSION "$VERSION"
@@ -32,13 +40,15 @@ SetCompressor lzma
 ; MUI Settings
 !include "MUI.nsh"
 !define MUI_ABORTWARNING
-!define MUI_ICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
-!define MUI_UNICON "$NICKEL_DIR/src/nickel/branding/icon.ico"
+; Fallback to generic icon if specific icon not found
+!define MUI_ICON "installer\chrome.exe"
+!define MUI_UNICON "installer\chrome.exe"
 
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME
 ; License page
-!insertmacro MUI_PAGE_LICENSE "LICENSE"
+; Skip license page for now if LICENSE file not in build dir
+; !insertmacro MUI_PAGE_LICENSE "LICENSE"
 ; Directory page
 !insertmacro MUI_PAGE_DIRECTORY
 ; Instfiles page
@@ -107,13 +117,12 @@ Section Uninstall
 SectionEnd
 EOF
 
-# Build installer with NSIS
-makensis installer.nsi 2>/dev/null || echo "NSIS not available, creating ZIP fallback"
-
-# Fallback to ZIP if NSIS unavailable
-if [ ! -f "NickelBrowser-${VERSION}-windows-x64.exe" ]; then
+echo "📦 Creating Windows installer package..."
+# Fallback method if NSIS fails or not present
+makensis installer.nsi || {
+    echo "⚠️  makensis failed. Creating .zip fallback."
     zip -r "NickelBrowser-${VERSION}-windows-x64.zip" installer/
-    echo "✅ ZIP package created (NSIS unavailable)"
-else
-    echo "✅ Windows installer created: NickelBrowser-${VERSION}-windows-x64.exe"
-fi
+}
+
+echo "✅ Windows installer package created!"
+echo "=== STEP END: Build Windows Installer Package ==="

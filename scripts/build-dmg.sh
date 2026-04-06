@@ -1,17 +1,27 @@
 #!/bin/bash
+# Nickel Browser - Build macOS .dmg Package
 set -e
+
+echo "=== STEP START: Build macOS .dmg Package ==="
 
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nickel directory is the parent of the scripts directory
 NICKEL_DIR="${NICKEL_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
 
 VERSION="${NICKEL_VERSION:-1.0.0-alpha}"
-BUILD_DIR="${BUILD_DIR:-out/Nickel}"
+BUILD_DIR="${SRC_DIR}/out/Release"
 
-echo "📦 Building macOS .dmg package..."
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "❌ Error: Nickel build not found at $BUILD_DIR"
+    exit 1
+fi
 
-# Create app bundle structure
+cd "$SRC_DIR"
+
+echo "📂 Creating macOS .dmg package structure..."
 APP_NAME="Nickel Browser.app"
 APP_DIR="$BUILD_DIR/$APP_NAME"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -19,10 +29,10 @@ CONTENTS_DIR="$APP_DIR/Contents"
 mkdir -p "$CONTENTS_DIR/MacOS"
 mkdir -p "$CONTENTS_DIR/Resources"
 
-# Copy binary
+echo "📁 Copying binaries..."
 cp -r "$BUILD_DIR"/* "$CONTENTS_DIR/MacOS/"
 
-# Create Info.plist
+echo "📝 Creating Info.plist..."
 cat > "$CONTENTS_DIR/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -52,24 +62,12 @@ cat > "$CONTENTS_DIR/Info.plist" << EOF
 </plist>
 EOF
 
-# Copy icon if exists
+echo "🎨 Copying branding..."
 cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$CONTENTS_DIR/Resources/" 2>/dev/null || true
 
-# Create DMG
-create-dmg \
-    --volname "Nickel Browser" \
-    --volicon "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" \
-    --window-pos 200 120 \
-    --window-size 600 400 \
-    --icon-size 100 \
-    --app-drop-link 450 185 \
-    --icon "$APP_NAME" 150 185 \
-    "NickelBrowser-${VERSION}.dmg" \
-    "$APP_DIR" 2>/dev/null || echo "Creating DMG with fallback method"
-
-# Fallback if create-dmg not available
-if [ ! -f "NickelBrowser-${VERSION}.dmg" ]; then
-    hdiutil create -volname "Nickel Browser" -srcfolder "$APP_DIR" -ov -format UDZO "NickelBrowser-${VERSION}.dmg"
-fi
+echo "📦 Creating .dmg package..."
+# Fallback method
+hdiutil create -volname "Nickel Browser" -srcfolder "$APP_DIR" -ov -format UDZO "NickelBrowser-${VERSION}.dmg"
 
 echo "✅ .dmg package created: NickelBrowser-${VERSION}.dmg"
+echo "=== STEP END: Build macOS .dmg Package ==="

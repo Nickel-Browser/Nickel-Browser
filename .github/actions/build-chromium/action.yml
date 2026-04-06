@@ -1,0 +1,56 @@
+name: 'Build Chromium'
+description: 'Generates build configuration and builds Nickel Browser'
+inputs:
+  src-dir:
+    description: 'Path to Chromium src directory'
+    required: true
+  target-os:
+    description: 'Target operating system (linux/macos/windows)'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: ⚙️ Generate Build Configuration
+      run: |
+        cd ${{ inputs.src-dir }}
+        mkdir -p out/Release
+
+        cat > out/Release/args.gn << 'EOF'
+        is_official_build = true
+        is_debug = false
+        symbol_level = 0
+        blink_symbol_level = 0
+        enable_nacl = false
+        proprietary_codecs = true
+        ffmpeg_branding = "Chrome"
+        use_sysroot = true
+        treat_warnings_as_errors = false
+        google_api_key = ""
+        google_default_client_id = ""
+        google_default_client_secret = ""
+        use_lld = true
+        use_thin_lto = true
+        is_cfi = false
+        optimize_for_size = true
+        icu_use_data_file = true
+        is_component_build = false
+        EOF
+
+        if [[ "${{ inputs.target-os }}" == "macos" ]]; then
+          echo 'target_cpu = "x64"' >> out/Release/args.gn
+        elif [[ "${{ inputs.target-os }}" == "windows" ]]; then
+          echo 'target_cpu = "x64"' >> out/Release/args.gn
+        fi
+
+        gn gen out/Release
+      shell: bash
+
+    - name: 🔨 Build Nickel Browser
+      run: |
+        cd ${{ inputs.src-dir }}
+        if [[ "${{ inputs.target-os }}" == "macos" ]]; then
+          ninja -C out/Release chrome -j$(sysctl -n hw.ncpu)
+        else
+          ninja -C out/Release chrome -j$(nproc)
+        fi
+      shell: bash

@@ -1,0 +1,58 @@
+name: 'Package and Verify'
+description: 'Packages build artifacts and performs validation'
+inputs:
+  src-dir:
+    description: 'Path to built Chromium directory'
+    required: true
+  nickel-dir:
+    description: 'Path to Nickel repository root'
+    required: true
+  platform:
+    description: 'Target platform label'
+    required: true
+  version:
+    description: 'Version string'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: 📦 Package Artifacts
+      run: |
+        export SRC_DIR=${{ inputs.src-dir }}
+        export NICKEL_DIR=${{ inputs.nickel-dir }}
+        export NICKEL_VERSION=${{ inputs.version }}
+        bash "$NICKEL_DIR/scripts/package-${{ inputs.platform }}.sh"
+      shell: bash
+
+    - name: 📝 Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        path: ${{ inputs.nickel-dir }}/dist
+        format: spdx-json
+        output-file: ${{ inputs.nickel-dir }}/dist/nickel-browser-${{ inputs.platform }}-sbom.spdx.json
+
+    - name: 🔐 Sign Artifacts (Linux GPG)
+      if: inputs.platform == 'linux'
+      run: |
+        if [ -n "${{ env.GPG_PRIVATE_KEY }}" ]; then
+          echo "🔐 Signing Linux artifacts..."
+          echo "${{ env.GPG_PRIVATE_KEY }}" | gpg --import
+          cd ${{ inputs.nickel-dir }}/dist
+          for file in *.deb *.AppImage; do
+            gpg --detach-sign --armor "$file"
+          done
+        else
+          echo "⚠️  GPG_PRIVATE_KEY not found, skipping Linux signing"
+        fi
+      shell: bash
+
+    - name: 🔍 Verify Artifacts
+      run: |
+        DIST_DIR="${{ inputs.nickel-dir }}/dist"
+        if [ -z "$(ls -A $DIST_DIR)" ]; then
+          echo "❌ Error: No artifacts produced in $DIST_DIR"
+          exit 1
+        fi
+        echo "✅ Artifacts verified in $DIST_DIR"
+        ls -l $DIST_DIR
+      shell: bash

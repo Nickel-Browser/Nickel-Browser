@@ -1,0 +1,23 @@
+name: 'Apply Patches'
+description: 'Applies Chromium and Nickel patches'
+inputs:
+  src-dir:
+    description: 'Path to Chromium src directory'
+    required: true
+  nickel-dir:
+    description: 'Path to Nickel repository root'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: 🔧 Apply Patches & Branding
+      run: |
+        export SRC_DIR=${{ inputs.src-dir }}
+        export NICKEL_DIR=${{ inputs.nickel-dir }}
+        bash "$NICKEL_DIR/scripts/apply_patches.sh"
+        bash "$NICKEL_DIR/scripts/apply_nickel_branding.sh"
+        if [ ! -f "${{ inputs.src-dir }}/.nickel_patches_applied" ]; then
+          echo "❌ Error: Patch application marker not found"
+          exit 1
+        fi
+      shell: bash

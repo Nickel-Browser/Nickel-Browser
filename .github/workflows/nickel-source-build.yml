@@ -1,0 +1,153 @@
+name: 🛡️ Nickel Browser Full Source Build
+
+# Nickel Browser Full Source Build Workflow
+# Designed for self-hosted runners with high resources.
+# Mission: Full compilation of Nickel Browser from Chromium source.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chromium_version:
+        description: 'Custom Chromium version (optional)'
+        required: false
+        default: ''
+      is_release:
+        description: 'Mark as official release'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: write
+  packages: read
+  actions: read
+
+env:
+  NICKEL_VERSION: "1.0.0-alpha"
+  CHROMIUM_CHANNEL: "Stable"
+
+jobs:
+  # ============================================================================
+  # JOB 1: Check for Chromium Updates & Metadata
+  # ============================================================================
+  prepare:
+    name: 🔍 Prepare Build Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.check.outputs.new_version }}
+      build_date: ${{ steps.date.outputs.date }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+
+      - name: 📅 Get Date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: 🏷️ Determine Version
+        id: version
+        run: echo "version=${{ env.NICKEL_VERSION }}" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Check Latest Chromium Version
+        id: check
+        run: |
+          set -euo pipefail
+          LATEST=$(curl -s "https://chromiumdash.appspot.com/fetch_releases?channel=Stable&num=1" | jq -r '.[0].version')
+          if [ "${{ github.event.inputs.chromium_version }}" != "" ]; then
+            LATEST="${{ github.event.inputs.chromium_version }}"
+          fi
+          echo "new_version=$LATEST" >> $GITHUB_OUTPUT
+
+  # ============================================================================
+  # JOB 2: Full Build Nickel Browser (Self-Hosted Only)
+  # ============================================================================
+  build:
+    name: 🏗️ Full Source Build (Self-Hosted)
+    needs: prepare
+    runs-on: self-hosted
+    timeout-minutes: 720
+    env:
+      NICKEL_DIR: /home/runner/nickel-src
+      SRC_DIR: /home/runner/nickel-src/src
+    steps:
+      - name: 📥 Checkout Nickel Browser
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          submodules: recursive
+
+      - name: 🛠️ Setup Environment
+        uses: ./.github/actions/setup-chromium-env
+        with:
+          os: linux
+
+      - name: 📥 Fetch Chromium Source
+        run: |
+          bash scripts/fetch-with-retry.sh "linux" "${{ needs.prepare.outputs.new_version }}" "${{ env.NICKEL_DIR }}"
+
+      - name: 🔧 Apply Patches
+        uses: ./.github/actions/apply-patches
+        with:
+          src-dir: ${{ env.SRC_DIR }}
+          nickel-dir: ${{ github.workspace }}
+
+      - name: 🔨 Build Nickel Browser (Full)
+        uses: ./.github/actions/build-chromium
+        with:
+          src-dir: ${{ env.SRC_DIR }}
+          target-os: linux
+
+      - name: 📦 Package and Verify
+        uses: ./.github/actions/package-and-verify
+        with:
+          src-dir: ${{ env.SRC_DIR }}
+          nickel-dir: ${{ github.workspace }}
+          platform: linux
+          version: ${{ needs.prepare.outputs.version }}
+
+      - name: 📤 Upload Artifacts
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: nickel-linux-full-${{ needs.prepare.outputs.new_version }}
+          path: ${{ github.workspace }}/dist/
+          retention-days: 30
+
+  # ============================================================================
+  # JOB 3: Create Release (Optional)
+  # ============================================================================
+  release:
+    name: 🚀 Create Release (Full Build)
+    needs: [prepare, build]
+    if: github.event.inputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download All Artifacts
+        uses: actions/download-artifact@c850b930e6ba1381254211c85671c002c4437499 # v4.1.4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 📋 Prepare Assets
+        run: |
+          mkdir -p final_assets
+          find artifacts -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.sha256" -o -name "*.json" \) -exec cp {} final_assets/ \;
+
+      - name: 🏷️ Create GitHub Release
+        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45c06278830205a91754a359 # v2.0.1
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}-full-${{ needs.prepare.outputs.new_version }}-${{ needs.prepare.outputs.build_date }}
+          name: 🛡️ Nickel Browser ${{ needs.prepare.outputs.version }} (Full Source Build)
+          body: |
+            ## 🛡️ Nickel Browser Full Source Build
+
+            This is an official build compiled directly from source on self-hosted infrastructure.
+
+            Built on Chromium **${{ needs.prepare.outputs.new_version }}**
+            Build Date: ${{ needs.prepare.outputs.build_date }}
+          files: final_assets/**/*
+          draft: true
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
