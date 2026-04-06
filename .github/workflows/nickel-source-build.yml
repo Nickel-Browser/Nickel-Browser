@@ -34,7 +34,7 @@ jobs:
       SRC_DIR: /opt/nickel-src/src
     steps:
       - name: 📥 Checkout Nickel Browser
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: 🛠️ Setup Build Environment
         run: |
@@ -110,7 +110,7 @@ jobs:
           sha256sum * > checksums-source.sha256
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@v4
         with:
           name: nickel-source-linux-${{ github.event.inputs.chromium_version }}
           path: dist/

@@ -2,7 +2,7 @@ name: 🛡️ Nickel Browser Production Build
 
 # Nickel Browser Production Build Workflow
 # Highly optimized: Binary-patch strategy for fast, stable builds on free-tier runners.
-# Pins all GitHub Actions to specific commit SHAs for security and stability.
+# Uses version tags for actions to ensure reliability.
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
       build_date: ${{ steps.date.outputs.date }}
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -108,7 +108,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout Nickel Browser
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: 🛠️ Install Build Dependencies
         run: |
@@ -116,7 +116,7 @@ jobs:
           sudo apt-get install -y jq curl wget tar xz-utils dpkg-dev
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@13f13d13c71c883d9840d5b195aeb72cbc275f33 # v4.0.0
+        uses: actions/cache@v4
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -148,7 +148,7 @@ jobs:
           sha256sum * > checksums-linux.sha256
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@v4
         with:
           name: nickel-linux-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -169,13 +169,13 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: 🛠️ Install Dependencies
         run: brew install jq
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@13f13d13c71c883d9840d5b195aeb72cbc275f33 # v4.0.0
+        uses: actions/cache@v4
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -200,7 +200,7 @@ jobs:
           shasum -a 256 * > checksums-macos.sha256
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@v4
         with:
           name: nickel-macos-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -221,7 +221,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: 🛠️ Install Dependencies
         shell: pwsh
@@ -229,7 +229,7 @@ jobs:
           choco install jq nsis zip -y
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@13f13d13c71c883d9840d5b195aeb72cbc275f33 # v4.0.0
+        uses: actions/cache@v4
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -257,7 +257,7 @@ jobs:
           sha256sum * > checksums-windows.sha256
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@v4
         with:
           name: nickel-windows-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -273,7 +273,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Download All Artifacts
-        uses: actions/download-artifact@c850b930e6ba1381254211c85671c002c4437499 # v4.1.4
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
@@ -287,7 +287,7 @@ jobs:
 
       - name: 🏷️ Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45c06278830205a91754a359 # v2.0.1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.NICKEL_VERSION }}-${{ needs.prepare.outputs.uc_version }}-${{ needs.prepare.outputs.build_date }}
           name: 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }} (UC ${{ needs.prepare.outputs.uc_version }})
