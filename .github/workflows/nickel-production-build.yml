@@ -46,6 +46,8 @@ permissions:
 env:
   NICKEL_VERSION: "1.0.0-alpha"
   CHROMIUM_CHANNEL: "Stable"
+  # Force Node 24 for all JS actions (Rule 25)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 defaults:
   run:
@@ -132,6 +134,7 @@ jobs:
     env:
       NICKEL_DIR: ${{ matrix.label == 'windows' && 'D:/nickel-src' || (matrix.label == 'macos' && '/Users/runner/nickel-src' || '/home/runner/nickel-src') }}
       SRC_DIR: ${{ matrix.label == 'windows' && 'D:/nickel-src/src' || (matrix.label == 'macos' && '/Users/runner/nickel-src/src' || '/home/runner/nickel-src/src') }}
+      DEPOT_TOOLS_WIN_TOOLCHAIN: 0
     steps:
       - name: 📥 Checkout Nickel Browser
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -144,6 +147,7 @@ jobs:
         with:
           root-reserve-mb: 8192
           swap-size-mb: 4096
+          build-mount-path: ${{ env.NICKEL_DIR }}
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'

@@ -31,6 +31,11 @@ cd "$NICKEL_DIR"
 
 if [ ! -d "src" ]; then
     echo "📥 Fetching Chromium source..."
+    # If a previous attempt left a .gclient file but no src, fetch will fail
+    if [ -f ".gclient" ]; then
+        echo "🗑️  Removing stale .gclient file..."
+        rm .gclient
+    fi
     fetch_with_retry fetch --nohooks --no-history chromium
 fi
 
