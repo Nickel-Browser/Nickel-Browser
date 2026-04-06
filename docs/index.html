@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nickel Browser | Block Everything. Leak Nothing. Own Your Web.</title>
+    <meta name="description" content="Nickel Browser - A privacy-first Chromium fork with native adblocking, built-in Tor, VPN integration, and zero telemetry.">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="icon" type="image/png" href="assets/logo-128.png">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">
+                <img src="assets/logo-128.png" alt="Nickel Browser">
+                <span>Nickel</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#download">Download</a></li>
+                <li><a href="https://github.com/Nickel-Browser/Nickel-Browser">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="particles" id="particles"></div>
+        <div class="container">
+            <div class="hero-content">
+                <img src="assets/logo-512.png" alt="Nickel Browser" class="hero-logo">
+                <h1>Block Everything.<br>Leak Nothing.<br><span class="highlight">Own Your Web.</span></h1>
+                <p class="tagline">The privacy browser you've been waiting for. Native adblocking. Built-in Tor. Zero telemetry.</p>
+                <div class="cta-buttons">
+                    <a href="#download" class="btn btn-primary">⬇️ Download Now</a>
+                    <a href="https://github.com/Nickel-Browser/Nickel-Browser" class="btn btn-secondary">⭐ Star on GitHub</a>
+                </div>
+                <p class="version">Latest: v1.0.0-alpha | Chromium 120.x</p>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Why Choose Nickel?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">🛡️</div>
+                    <h3>Native Adblock</h3>
+                    <p>NickelShield blocks ads at the source. No extensions needed. Faster, more secure, and undetectable.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🧅</div>
+                    <h3>Built-in Tor</h3>
+                    <p>Private windows with Tor built right in. New circuit per tab. Bridge support included.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🔐</div>
+                    <h3>VPN Integration</h3>
+                    <p>WireGuard and OpenVPN support. Kill switch, split tunneling, DNS leak protection.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🎭</div>
+                    <h3>Fingerprint Protection</h3>
+                    <p>Canvas noise, WebGL spoofing, audio noise. Be truly anonymous online.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">⌨️</div>
+                    <h3>Input Protection</h3>
+                    <p>Block keyboard layout fingerprinting. Mouse tracking prevention. HID/USB blocking.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">⚡</div>
+                    <h3>Chromium Speed</h3>
+                    <p>All the speed, none of the spyware. Zero Google telemetry. 100% open source.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="download">
+        <div class="container">
+            <h2>Download Nickel Browser</h2>
+            <div class="platform-detected" id="platform-detected"></div>
+            <div class="download-grid">
+                <div class="download-card">
+                    <div class="platform-icon">🐧</div>
+                    <h3>Linux</h3>
+                    <ul>
+                        <li><a href="#" class="download-link">.deb (Debian/Ubuntu)</a></li>
+                        <li><a href="#" class="download-link">.rpm (Fedora/RHEL)</a></li>
+                        <li><a href="#" class="download-link">.AppImage (Universal)</a></li>
+                        <li><a href="#" class="download-link">.tar.xz (Portable)</a></li>
+                    </ul>
+                </div>
+                <div class="download-card">
+                    <div class="platform-icon">🍎</div>
+                    <h3>macOS</h3>
+                    <ul>
+                        <li><a href="#" class="download-link">.dmg (Intel & Apple Silicon)</a></li>
+                        <li><a href="#" class="download-link">Homebrew: brew install nickel</a></li>
+                    </ul>
+                </div>
+                <div class="download-card">
+                    <div class="platform-icon">🪟</div>
+                    <h3>Windows</h3>
+                    <ul>
+                        <li><a href="#" class="download-link">.exe Installer</a></li>
+                        <li><a href="#" class="download-link">.msix Package</a></li>
+                        <li><a href="#" class="download-link">WinGet: winget install Nickel</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <h2>Compare Browsers</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th class="nickel">🛡️ Nickel</th>
+                        <th>Brave</th>
+                        <th>Firefox</th>
+                        <th>LibreWolf</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Zero Telemetry</td>
+                        <td class="nickel">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>✅</td>
+                    </tr>
+                    <tr>
+                        <td>Native Adblock</td>
+                        <td class="nickel">✅</td>
+                        <td>⚠️ Extension</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Built-in Tor</td>
+                        <td class="nickel">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>VPN Integration</td>
+                        <td class="nickel">✅</td>
+                        <td>⚠️ Paid</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Fingerprint Protection</td>
+                        <td class="nickel">✅ Advanced</td>
+                        <td>⚠️ Basic</td>
+                        <td>⚠️ Basic</td>
+                        <td>⚠️ Basic</td>
+                    </tr>
+                    <tr>
+                        <td>Keyboard/Mouse Protection</td>
+                        <td class="nickel">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Auto Updates</td>
+                        <td class="nickel">✅</td>
+                        <td>✅</td>
+                        <td>✅</td>
+                        <td>❌</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>© 2024 Nickel Browser. Licensed under MIT + GPLv3.</p>
+            <p><a href="https://github.com/Nickel-Browser/Nickel-Browser">GitHub</a> | <a href="https://matrix.to/#/#nickel-browser:matrix.org">Matrix</a> | <a href="https://reddit.com/r/NickelBrowser">Reddit</a></p>
+        </div>
+    </footer>
+
+    <script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+title: Nickel Browser
+description: Block Everything. Leak Nothing. Own Your Web.
+baseurl: ""
+url: "https://nickel-browser.github.io"
+
+# Theme settings
+show_downloads: true
+google_analytics: false
+
+# Exclude files
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
