@@ -170,12 +170,17 @@ jobs:
           cd ~/nickel-src/src
           
           # Clone ungoogled-chromium
-          git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git ../ungoogled-chromium
+          if [ ! -d "../ungoogled-chromium" ]; then
+            git clone --depth=1 https://github.com/ungoogled-software/ungoogled-chromium.git ../ungoogled-chromium
+          fi
           
           # Apply ungoogled patches
-          python3 ../ungoogled-chromium/utils/prune_binaries.py ./ ../ungoogled-chromium/pruning.list
-          python3 ../ungoogled-chromium/utils/patches.py apply ./ ../ungoogled-chromium/patches
-          python3 ../ungoogled-chromium/utils/domain_substitution.py apply -r ../ungoogled-chromium/domain_regex.list -f ../ungoogled-chromium/domain_substitution.list ./
+          if [ ! -f ".ungoogled_patches_applied" ]; then
+            python3 ../ungoogled-chromium/utils/prune_binaries.py ./ ../ungoogled-chromium/pruning.list
+            python3 ../ungoogled-chromium/utils/patches.py apply ./ ../ungoogled-chromium/patches
+            python3 ../ungoogled-chromium/utils/domain_substitution.py apply -r ../ungoogled-chromium/domain_regex.list -f ../ungoogled-chromium/domain_substitution.list ./
+            touch .ungoogled_patches_applied
+          fi
       
       - name: 🎨 Apply Nickel Browser Patches
         run: |
@@ -396,7 +401,7 @@ jobs:
       
       - name: 🛠️ Install Dependencies
         run: |
-          choco install ninja jq -y
+          choco install ninja jq nsis -y
           pip install pillow pyyaml
       
       - name: 📦 Setup Depot Tools
@@ -441,13 +446,16 @@ jobs:
       
       - name: 📦 Create Installer
         id: package
+        shell: bash
         run: |
           cd ~/nickel-src/src
           bash ${{ github.workspace }}/scripts/build-windows-installer.sh
-          $EXE_FILE = "NickelBrowser-${{ env.NICKEL_VERSION }}-windows-x64.exe"
-          Move-Item out/Nickel/*.exe $EXE_FILE -ErrorAction SilentlyContinue
-          "exe=$EXE_FILE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Copy-Item $EXE_FILE ${{ github.workspace }}/
+          EXE_FILE=$(ls out/Nickel/*.exe | head -n 1)
+          if [ -f "$EXE_FILE" ]; then
+            FINAL_EXE="NickelBrowser-${{ env.NICKEL_VERSION }}-windows-x64.exe"
+            mv "$EXE_FILE" "${{ github.workspace }}/$FINAL_EXE"
+            echo "exe=$FINAL_EXE" >> $GITHUB_OUTPUT
+          fi
       
       - name: 🔐 Sign
         env:
@@ -598,7 +606,6 @@ jobs:
                   </div>
                   
                   <p><strong>Chromium Base Version:</strong> ${{ needs.check-chromium-updates.outputs.new_version }}</p>
-                  <p><strong>Build Time:</strong> ${{ github.run_duration }} minutes</p>
                   
                   <div class="cta">
                     <a href="${{ steps.create_release.outputs.html_url }}">⬇️ Download Release</a>
