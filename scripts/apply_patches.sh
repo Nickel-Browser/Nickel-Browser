@@ -8,8 +8,12 @@ echo "🪙 Nickel Browser - Apply Patches"
 echo "=================================="
 echo ""
 
-NICKEL_DIR="$HOME/nickel-build/nickel"
-SRC_DIR="$HOME/nickel-build/src"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Nickel directory is the parent of the scripts directory
+NICKEL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Default SRC_DIR if not set
+SRC_DIR="${SRC_DIR:-$HOME/nickel-src/src}"
 
 # Check directories
 if [ ! -d "$NICKEL_DIR" ]; then
@@ -24,10 +28,9 @@ fi
 
 cd "$SRC_DIR"
 
-# Apply ungoogled-chromium patches first
+# Apply ungoogled-chromium patches if present
 echo "📋 Applying ungoogled-chromium patches..."
-
-UNGOOGLED_DIR="$HOME/nickel-build/ungoogled-chromium"
+UNGOOGLED_DIR="${UNGOOGLED_DIR:-$HOME/nickel-src/ungoogled-chromium}"
 
 if [ -d "$UNGOOGLED_DIR" ]; then
     echo "✅ Found ungoogled-chromium at $UNGOOGLED_DIR"
@@ -44,7 +47,7 @@ if [ -d "$UNGOOGLED_DIR" ]; then
         python3 "$UNGOOGLED_DIR/utils/domain_substitution.py" apply \
             -r "$UNGOOGLED_DIR/domain_regex.list" \
             -f "$UNGOOGLED_DIR/domain_substitution.list" \
-            -c "$HOME/nickel-build/domsubcache.tar.gz" ./
+            -c "$HOME/nickel-src/domsubcache.tar.gz" ./
     fi
     
     # Apply patches
@@ -59,22 +62,21 @@ if [ -d "$UNGOOGLED_DIR" ]; then
     fi
 else
     echo "⚠️  ungoogled-chromium not found. Skipping ungoogled patches."
-    echo "   For full privacy, clone: https://github.com/ungoogled-software/ungoogled-chromium"
 fi
 
 echo ""
 echo "🔧 Applying Nickel Browser patches..."
 
-# Apply Nickel patches
+# Apply Nickel patches in order
 NICKEL_PATCHES=(
-    "nickel-branding.patch"
-    "nickel-privacy-defaults.patch"
-    "nickel-adblock.patch"
-    "nickel-fingerprint.patch"
-    "nickel-webrtc.patch"
-    "nickel-tor.patch"
-    "nickel-vpn.patch"
-    "nickel-ui.patch"
+    "0002-disable-safe-browsing-ping.patch"
+    "0003-disable-webrtc-leak.patch"
+    "0009-nickel-branding.patch"
+    "0011-nickel-adblock-engine.patch"
+    "0012-nickel-fingerprint-protection.patch"
+    "0013-nickel-tor-private-window.patch"
+    "0014-nickel-vpn-layer.patch"
+    "0019-nickel-community-features.patch"
 )
 
 for patch in "${NICKEL_PATCHES[@]}"; do
@@ -101,21 +103,10 @@ if [ -d "$NICKEL_DIR/src/nickel" ]; then
     echo "    ✅ Done"
 fi
 
-# Copy branding files
-echo ""
-echo "🎨 Copying branding files..."
-
-if [ -d "$NICKEL_DIR/src/nickel/branding" ]; then
-    echo "  Copying logos..."
-    cp "$NICKEL_DIR/src/nickel/branding/product_logo_"*.png \
-        chrome/app/theme/chromium/ 2>/dev/null || true
-    echo "    ✅ Done"
-fi
-
 # Mark patches as applied
 touch "$SRC_DIR/.nickel_patches_applied"
 
 echo ""
 echo "✅ Patches applied!"
 echo ""
-echo "You can now build with: ./scripts/build.sh"
+echo "You can now build with: gn gen out/Nickel && autoninja -C out/Nickel chrome"
