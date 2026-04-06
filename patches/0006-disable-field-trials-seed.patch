@@ -1,0 +1,27 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: Disable Field Trials Seed
+
+Disables the fetch of the seed for Google's field trial and variations system.
+
+---
+ components/variations/variations_seed_store.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/components/variations/variations_seed_store.cc b/components/variations/variations_seed_store.cc
+index 1234567..abcdefg 100644
+--- a/components/variations/variations_seed_store.cc
++++ b/components/variations/variations_seed_store.cc
+@@ -20,6 +20,10 @@
+
+ namespace variations {
+
++bool VariationsSeedStore::StoreSeed(const std::string& seed_data) {
++  return false; // Nickel: Never store Google's experiment seeds
++}
++
+ bool VariationsSeedStore::LoadSeed(VariationsSeed* seed) {
+   return false;
+ }
+--
+2.40.0

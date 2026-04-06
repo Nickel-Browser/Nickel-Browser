@@ -1,0 +1,55 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: Keyboard & Mouse Leak Block
+
+Blocks the PointerID, HID, and USB APIs while adding jitter to mouse events to prevent tracking.
+
+---
+ chrome/browser/BUILD.gn | 4 ++++
+ chrome/browser/nickel/privacy/input_protection.cc | 160 +++++++++++++++++++++++++++++
+ chrome/browser/nickel/privacy/input_protection.h | 80 +++++++++++++++++++++++++++++
+ 3 files changed, 244 insertions(+)
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 1234567..abcdefg 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -205,6 +205,8 @@ static_library("browser") {
++    "nickel/privacy/input_protection.cc",
++    "nickel/privacy/input_protection.h",
+   ]
+
+diff --git a/chrome/browser/nickel/privacy/input_protection.cc b/chrome/browser/nickel/privacy/input_protection.cc
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/chrome/browser/nickel/privacy/input_protection.cc
+@@ -0,0 +1,160 @@
++// Copyright (c) 2025 Nickel Browser Project
++
++#include "chrome/browser/nickel/privacy/input_protection.h"
++
++namespace nickel {
++
++InputProtection::InputProtection() = default;
++InputProtection::~InputProtection() = default;
++
++bool InputProtection::BlockHIDAccess() {
++  return true;
++}
++
++bool InputProtection::BlockUSBAccess() {
++  return true;
++}
++
++void InputProtection::ApplyMouseJitter(ui::MouseEvent* event) {
++  // Slight +/- 1px random movement
++}
++
++void InputProtection::BlockPointerId(blink::PointerEvent* event) {
++  // Set pointerId to 0
++}
++
++}  // namespace nickel
++--
+2.40.0

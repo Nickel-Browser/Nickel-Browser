@@ -1,0 +1,24 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: Disable Metrics Upload
+
+Forced disable of Google's metrics and diagnostic reporting.
+
+---
+ chrome/browser/metrics/metrics_reporting_state.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/chrome/browser/metrics/metrics_reporting_state.cc b/chrome/browser/metrics/metrics_reporting_state.cc
+index 1234567..abcdefg 100644
+--- a/chrome/browser/metrics/metrics_reporting_state.cc
++++ b/chrome/browser/metrics/metrics_reporting_state.cc
+@@ -35,6 +35,10 @@
+   // Nickel: Forced disabled
+   enabled = false;
+ }
++
++void ChangeMetricsReportingState(bool enabled) {
++  // Do nothing, keep it disabled
++}
+ --
+ 2.40.0

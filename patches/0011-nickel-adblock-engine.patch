@@ -2,25 +2,29 @@ From: Nickel Browser Team <team@nickel-browser.org>
 Date: Thu, 01 Jan 2025 00:00:00 +0000
 Subject: [PATCH] Nickel Browser: Nuclear Ad-Blocking Integration
 
-This patch integrates uBlock Origin's engine at the source level for
-nuclear-grade ad-blocking with Manifest V2 support preserved.
-
-Features:
-- uBlock Origin filtering engine embedded
-- All major filter lists bundled
-- Cosmetic filtering at native speed
-- Scriptlet injection for anti-adblock bypass
-- CNAME uncloaking support
-- YouTube/Spotify ad blocking
+This patch integrates uBlock Origin's engine at the source level.
 
 ---
+ chrome/browser/BUILD.gn | 10 ++++++++++
  chrome/browser/net/chrome_network_delegate.cc |  85 +++++++++
  chrome/browser/nickel/adblock/adblock_controller.cc | 245 ++++++++++++++++++++
  chrome/browser/nickel/adblock/adblock_controller.h |  89 ++++++++
  chrome/browser/nickel/adblock/filter_engine.cc | 456 +++++++++++++++++++++++++++++++
  chrome/browser/nickel/adblock/filter_engine.h | 178 +++++++++++++
  chrome/browser/nickel/adblock/filter_lists.json |  72 ++++++
- 6 files changed, 1125 insertions(+)
+ 7 files changed, 1135 insertions(+)
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 1234567..abcdefg 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -200,6 +200,10 @@ static_library("browser") {
+     "net/system_network_context_manager.h",
++    "nickel/adblock/adblock_controller.cc",
++    "nickel/adblock/adblock_controller.h",
++    "nickel/adblock/filter_engine.cc",
++    "nickel/adblock/filter_engine.h",
+   ]
 
 diff --git a/chrome/browser/net/chrome_network_delegate.cc b/chrome/browser/net/chrome_network_delegate.cc
 index 1234567..abcdefg 100644
@@ -1163,5 +1167,5 @@ index 0000000..1234567
 +    }
 +  ]
 +}
--- 
++--
 2.40.0

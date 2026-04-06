@@ -1,0 +1,27 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2025 00:00:00 +0000
+Subject: [PATCH] Nickel Browser: New Tab Page
+
+Custom new tab page for Nickel Browser.
+
+---
+ chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
+index 1234567..abcdefg 100644
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
+@@ -20,6 +20,10 @@
+
+ namespace ntp {
+
++void OverrideNTP(GURL* url) {
++  *url = GURL("nickel://newtab");
++}
++
+ void GetMostVisitedItems() {
+   // Local stats only
+ }
+--
+2.40.0
