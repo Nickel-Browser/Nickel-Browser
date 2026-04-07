@@ -45,6 +45,11 @@ on:
           - stable
           - beta
           - nightly
+      debug_mode:
+        description: 'Enable verbose debugging output'
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: '0 2 * * 1'       # Weekly Monday 2AM UTC
     - cron: '0 14 * * * 3,5'     # Wed/Fri 2PM UTC (additional builds)
@@ -64,8 +69,8 @@ permissions:
 env:
   NICKEL_VERSION: "1.0.0-alpha"
   CHROMIUM_CHANNEL: "Stable"
-  # Force Node 24 for JS actions (security best practice)
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # DEBUG_MODE: Set to 'true' via workflow_dispatch for verbose output
+  DEBUG_MODE: ${{ github.event.inputs.debug_mode == 'true' && 'true' || 'false' }}
 
 defaults:
   run:
@@ -218,6 +223,17 @@ jobs:
         if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
         run: |
           set -euo pipefail
+
+          # Debug output if enabled
+          if [ "${{ env.DEBUG_MODE }}" = "true" ]; then
+            echo "::group::Debug Information"
+            echo "Target version: ${{ needs.prepare.outputs.uc_version }}"
+            echo "Binary dir: ${{ env.BINARY_DIR }}"
+            echo "Workspace: ${{ github.workspace }}"
+            echo "Runner OS: ${{ runner.os }}"
+            echo "::endgroup::"
+          fi
+
           max_attempts=3
           attempt=1
           until [ $attempt -gt $max_attempts ]; do
@@ -231,7 +247,8 @@ jobs:
             sleep $(( attempt * 10 ))
           done
           if [ $attempt -gt $max_attempts ]; then
-            echo "❌ Failed to download after $max_attempts attempts"
+            echo "::error::Failed to download UC binary after $max_attempts attempts"
+            echo "::error::Check network connectivity and GitHub API rate limits"
             exit 1
           fi
 
@@ -263,7 +280,7 @@ jobs:
               for f in $pattern; do
                 size=$(stat -f%s "$f" 2>/dev/null | stat -c%s "$f")
                 if [ "$size" -lt 10000000 ]; then
-                  echo "❌ ERROR: $f too small ($size bytes)"
+                  echo "::error::$f too small ($size bytes)"
                   exit 1
                 fi
                 echo "✅ $f ($(( size / 1048576 ))MB)"
@@ -272,7 +289,9 @@ jobs:
               echo "⚠️  No $pattern found"
             fi
           done
+
       - name: 📤 Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4.3.3  # PINNED: v4.3.3 (NOT v5/v7!)
         with:
           name: nickel-linux-${{ needs.prepare.outputs.uc_version }}
@@ -330,6 +349,11 @@ jobs:
             attempt=$((attempt + 1))
             sleep $(( attempt * 10 ))
           done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "::error::Failed to download UC binary after $max_attempts attempts"
+            exit 1
+          fi
+
       - name: 🔧 Package macOS
         run: |
           chmod +x scripts/build-dmg.sh
@@ -348,12 +372,14 @@ jobs:
             [ -f "$f" ] || continue
             size=$(stat -f%z "$f")
             if [ "$size" -lt 50000000 ]; then
-              echo "❌ ERROR: $f too small ($size bytes)"
+              echo "::error::$f too small ($size bytes)"
               exit 1
             fi
             echo "✅ $f ($(( size / 1048576 ))MB)"
           done
+
       - name: 📤 Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4.3.3  # PINNED: v4.3.3
         with:
           name: nickel-macos-${{ needs.prepare.outputs.uc_version }}
@@ -422,6 +448,11 @@ jobs:
             attempt=$((attempt + 1))
             sleep $(( attempt * 15 ))
           done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "::error::Failed to download UC binary after $max_attempts attempts"
+            exit 1
+          fi
+
       - name: 🔧 Package Windows
         shell: bash
         run: |
@@ -442,13 +473,14 @@ jobs:
             [ -f "$f" ] || continue
             size=$(stat -c%s "$f" 2>/dev/null || wc -c < "$f")
             if [ "$size" -lt 80000000 ]; then
-              echo "❌ ERROR: $f too small ($size bytes)"
+              echo "::error::$f too small ($size bytes)"
               exit 1
             fi
             echo "✅ $f ($(( size / 1048576 ))MB)"
           done
 
       - name: 📤 Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4.3.3  # PINNED: v4.3.3
         with:
           name: nickel-windows-${{ needs.prepare.outputs.uc_version }}
@@ -592,6 +624,17 @@ jobs:
             - Linux: ${{ needs.build-linux.result }}
             - macOS: ${{ needs.build-macos.result }}
             - Windows: ${{ needs.build-windows.result }}
+
+      - name: 📤 Upload Debug Info on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: debug-info-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/
+            final_assets/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 📊 Final Status Report
         if: always()
