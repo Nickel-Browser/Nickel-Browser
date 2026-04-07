@@ -57,7 +57,7 @@ jobs:
       nickel_version: ${{ steps.version.outputs.nickel_version }}
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -139,7 +139,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout Nickel Browser
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Build Dependencies
         run: |
@@ -147,7 +147,7 @@ jobs:
           sudo apt-get install -y jq curl wget tar xz-utils dpkg-dev
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -231,7 +231,7 @@ jobs:
           done
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nickel-linux-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -251,7 +251,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Dependencies
         run: |
@@ -262,7 +262,7 @@ jobs:
           fi
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -330,7 +330,7 @@ jobs:
 
       - name: 🍎 Sign macOS Artifacts
         if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
-        uses: apple-actions/import-codesign-certs@v2
+        uses: apple-actions/import-codesign-certs@v6
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -343,7 +343,7 @@ jobs:
           echo "✅ macOS artifact signed"
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nickel-macos-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -363,7 +363,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Dependencies
         shell: pwsh
@@ -371,7 +371,7 @@ jobs:
           choco install jq nsis zip -y
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -458,7 +458,7 @@ jobs:
           }
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nickel-windows-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -477,12 +477,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: 📥 Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
