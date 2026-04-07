@@ -330,7 +330,7 @@ jobs:
 
       - name: 🍎 Sign macOS Artifacts
         if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
-        uses: apple-actions/import-codesign-certs@v2
+        uses: apple-actions/import-codesign-certs@v6
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
