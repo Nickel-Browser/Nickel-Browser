@@ -26,7 +26,8 @@ mkdir -p "$PACKAGE_DIR/usr/bin"
 # Find the Chromium root in the binary dir (it often has a subdir)
 CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome" -type f | xargs dirname | head -n 1)
 
-if [ -z "$CHROME_ROOT" ]; then
+if [ -z "$CHROME_ROOT" ]
+then
     echo "❌ Error: Could not find 'chrome' binary in $BINARY_DIR"
     exit 1
 fi
@@ -35,7 +36,8 @@ echo "📍 CHROME_ROOT: $CHROME_ROOT"
 cp -r "$CHROME_ROOT"/* "$PACKAGE_DIR/opt/nickel-browser/"
 
 # Rename the main binary to nickel-browser for consistency
-if [ -f "$PACKAGE_DIR/opt/nickel-browser/chrome" ]; then
+if [ -f "$PACKAGE_DIR/opt/nickel-browser/chrome" ]
+then
     mv "$PACKAGE_DIR/opt/nickel-browser/chrome" "$PACKAGE_DIR/opt/nickel-browser/nickel-browser"
 fi
 
@@ -55,7 +57,8 @@ Terminal=false
 EOF
 
 # Copy icon
-if [ -f "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" ]; then
+if [ -f "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" ]
+then
     cp "$NICKEL_DIR/src/nickel/branding/product_logo_256.png" "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps/nickel-browser.png"
 fi
 

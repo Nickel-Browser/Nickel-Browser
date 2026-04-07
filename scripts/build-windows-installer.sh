@@ -18,7 +18,8 @@ echo "📦 Building Windows Installer..."
 # Find the Chromium root in the binary dir (it's often the root for Windows)
 CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome.exe" -type f | xargs dirname | head -n 1)
 
-if [ -z "$CHROME_ROOT" ]; then
+if [ -z "$CHROME_ROOT" ]
+then
     echo "❌ Error: Could not find 'chrome.exe' binary in $BINARY_DIR"
     exit 1
 fi
@@ -26,7 +27,8 @@ fi
 echo "📍 CHROME_ROOT: $CHROME_ROOT"
 
 # Rename the main binary to nickel-browser.exe for consistency
-if [ -f "$CHROME_ROOT/chrome.exe" ]; then
+if [ -f "$CHROME_ROOT/chrome.exe" ]
+then
     mv "$CHROME_ROOT/chrome.exe" "$CHROME_ROOT/nickel-browser.exe"
 fi
 
@@ -76,8 +78,9 @@ EOF
 
 # Note: In Windows GHA, 'makensis' needs to be in PATH or called directly.
 # For now, we'll assume it's available via choco install nsis.
-if command -v makensis &> /dev/null; then
-    makensis -DVERSION=$VERSION "$NICKEL_DIR/nickel-installer.nsi"
+if command -v makensis &> /dev/null
+then
+    makensis -DVERSION="$VERSION" "$NICKEL_DIR/nickel-installer.nsi"
     mkdir -p "$DIST_DIR"
     mv "NickelBrowser-${VERSION}-Setup.exe" "$DIST_DIR/"
     echo "✅ Windows installer created: NickelBrowser-${VERSION}-Setup.exe"

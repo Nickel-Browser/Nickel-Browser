@@ -20,7 +20,8 @@ mkdir -p "$DIST_DIR"
 # Find the Chromium DMG file downloaded
 DMG_FILE=$(find "$BINARY_DIR" -name "*.dmg" -type f | head -n 1)
 
-if [ -z "$DMG_FILE" ]; then
+if [ -z "$DMG_FILE" ]
+then
     echo "❌ Error: Could not find a .dmg file in $BINARY_DIR"
     exit 1
 fi
@@ -39,7 +40,8 @@ hdiutil detach "$MOUNT_POINT" -quiet
 
 # Perform basic branding on the app bundle
 INFO_PLIST="$TMP_DIR/Nickel Browser.app/Contents/Info.plist"
-if [ -f "$INFO_PLIST" ]; then
+if [ -f "$INFO_PLIST" ]
+then
     echo "🎨 Updating Info.plist..."
     /usr/libexec/PlistBuddy -c "Set :CFBundleName 'Nickel Browser'" "$INFO_PLIST"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Nickel Browser'" "$INFO_PLIST"
@@ -47,13 +49,15 @@ if [ -f "$INFO_PLIST" ]; then
 fi
 
 # Rename the executable
-if [ -f "$TMP_DIR/Nickel Browser.app/Contents/MacOS/Chromium" ]; then
+if [ -f "$TMP_DIR/Nickel Browser.app/Contents/MacOS/Chromium" ]
+then
     mv "$TMP_DIR/Nickel Browser.app/Contents/MacOS/Chromium" "$TMP_DIR/Nickel Browser.app/Contents/MacOS/nickel-browser"
 fi
 
 # Replace the icon if it exists
 # Typically it's app.icns
-if [ -f "$NICKEL_DIR/src/nickel/branding/nickel.icns" ]; then
+if [ -f "$NICKEL_DIR/src/nickel/branding/nickel.icns" ]
+then
     echo "🎨 Replacing app icon..."
     cp "$NICKEL_DIR/src/nickel/branding/nickel.icns" "$TMP_DIR/Nickel Browser.app/Contents/Resources/app.icns"
 fi

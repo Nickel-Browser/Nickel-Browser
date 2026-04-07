@@ -104,10 +104,12 @@ jobs:
           set -euo pipefail
 
           # Priority: Manual input > Tag > Schedule > Default
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          if [[ "$GITHUB_REF" == refs/tags/* ]]
+          then
             VERSION=${GITHUB_REF#refs/tags/}
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-          elif [ -n "${{ github.event.inputs.chromium_version }}" ]; then
+          elif [ -n "${{ github.event.inputs.chromium_version }}" ]
+          then
             VERSION="${{ github.event.inputs.chromium_version }}"
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
           else
@@ -132,7 +134,8 @@ jobs:
           LATEST=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" | jq -r '.tag_name')
 
-          if [ -n "$INPUT_VERSION" ]; then
+          if [ -n "$INPUT_VERSION" ]
+          then
             LATEST="$INPUT_VERSION"
             echo "Using manually specified version: $LATEST"
           else
@@ -140,14 +143,16 @@ jobs:
           fi
           
           CURRENT="none"
-          if [ -f .chromium_version ]; then
+          if [ -f .chromium_version ]
+          then
             CURRENT=$(cat .chromium_version)
           fi
           echo "Current built version: $CURRENT"
           
           SHOULD_BUILD="false"
           # Build if version changed, or manual trigger, or tag push, or not on schedule
-          if [ "$LATEST" != "$CURRENT" ] || [ "${{ github.event_name }}" != "schedule" ] || [ -n "${{ github.event.inputs.chromium_version }}" ]; then
+          if [ "$LATEST" != "$CURRENT" ] || [ "${{ github.event_name }}" != "schedule" ] || [ -n "${{ github.event.inputs.chromium_version }}" ]
+          then
             SHOULD_BUILD="true"
           fi
 
@@ -209,9 +214,8 @@ jobs:
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
-          key: uc-binary-linux-${{ needs.prepare.outputs.uc_version }}-${{ hashFiles('scripts/apply-nickel-branding.sh', 'scripts/build-deb.sh', 'scripts/build-appimage.sh') }}
+          key: uc-binary-linux-${{ needs.prepare.outputs.uc_version }}-${{ hashFiles('scripts/apply-nickel-branding.sh', 'scripts/build-deb.sh') }}
           restore-keys: |
-            uc-binary-linux-
             uc-binary-linux-
 
       - name: ⬇️ Download UC Binary (with retry)
@@ -220,26 +224,29 @@ jobs:
           set -euo pipefail
           max_attempts=3
           attempt=1
-          until [ $attempt -gt $max_attempts ]; do
+          until [ $attempt -gt $max_attempts ]
+          do
             echo "Download attempt $attempt of $max_attempts..."
             if chmod +x scripts/download-uc-binary.sh && \
-               GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh linux "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
+               GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh linux "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"
+            then
               echo "✅ Download successful"
               break
             fi
             attempt=$((attempt + 1))
             sleep $(( attempt * 10 ))
           done
-          if [ $attempt -gt $max_attempts ]; then
+          if [ "$attempt" -gt "$max_attempts" ]
+          then
             echo "❌ Failed to download after $max_attempts attempts"
             exit 1
           fi
 
       - name: 🔧 Apply Branding & Package
         run: |
+          set -euo pipefail
           chmod +x scripts/apply-nickel-branding.sh
           chmod +x scripts/build-deb.sh
-          chmod +x scripts/build-appimage.sh
 
           export NICKEL_DIR="${{ github.workspace }}"
           export BINARY_DIR="${{ env.BINARY_DIR }}"
@@ -247,22 +254,26 @@ jobs:
 
           ./scripts/apply-nickel-branding.sh
           ./scripts/build-deb.sh
-          ./scripts/build-appimage.sh
 
-          mkdir -p dist
-          mv *.deb *.AppImage dist/ 2>/dev/null || true
-          cd dist
+          mkdir -p "${{ github.workspace }}/dist"
+          mv *.deb "${{ github.workspace }}/dist/" 2>/dev/null || true
+          cd "${{ github.workspace }}/dist"
           sha256sum * > checksums-linux.sha256
 
       - name: ✅ Verify Artifacts
         run: |
-          cd ${GITHUB_WORKSPACE}/dist || exit 1
+          set -euo pipefail
+          cd "${{ github.workspace }}/dist" || exit 1
           echo "🔍 Verifying Linux artifacts..."
-          for pattern in "*.deb" "*.AppImage"; do
-            if ls $pattern 1>/dev/null 2>&1; then
-              for f in $pattern; do
-                size=$(stat -f%s "$f" 2>/dev/null | stat -c%s "$f")
-                if [ "$size" -lt 10000000 ]; then
+          for pattern in "*.deb"
+          do
+            if ls $pattern 1>/dev/null 2>&1
+            then
+              for f in $pattern
+              do
+                size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+                if [ "$size" -lt 10000000 ]
+                then
                   echo "❌ ERROR: $f too small ($size bytes)"
                   exit 1
                 fi
@@ -320,10 +331,12 @@ jobs:
           set -euo pipefail
           max_attempts=3
           attempt=1
-          until [ $attempt -gt $max_attempts ]; do
+          until [ $attempt -gt $max_attempts ]
+          do
             echo "macOS download attempt $attempt of $max_attempts..."
             if chmod +x scripts/download-uc-binary.sh && \
-               GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh macos "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
+               GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh macos "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"
+            then
               echo "✅ Download successful"
               break
             fi
@@ -332,22 +345,26 @@ jobs:
           done
       - name: 🔧 Package macOS
         run: |
+          set -euo pipefail
           chmod +x scripts/build-dmg.sh
           export NICKEL_DIR="${{ github.workspace }}"
           export BINARY_DIR="${{ env.BINARY_DIR }}"
           export NICKEL_VERSION="${{ needs.prepare.outputs.nickel_version }}"
           export DIST_DIR="${{ github.workspace }}/dist"
           ./scripts/build-dmg.sh
-          cd ${DIST_DIR}
+          cd "${DIST_DIR}"
           shasum -a 256 * > checksums-macos.sha256
 
       - name: ✅ Verify Artifacts
         run: |
-          cd ${GITHUB_WORKSPACE}/dist || exit 1
-          for f in *.dmg; do
+          set -euo pipefail
+          cd "${{ github.workspace }}/dist" || exit 1
+          for f in *.dmg
+          do
             [ -f "$f" ] || continue
             size=$(stat -f%z "$f")
-            if [ "$size" -lt 50000000 ]; then
+            if [ "$size" -lt 50000000 ]
+            then
               echo "❌ ERROR: $f too small ($size bytes)"
               exit 1
             fi
@@ -412,10 +429,12 @@ jobs:
 
           max_attempts=3
           attempt=1
-          until [ $attempt -gt $max_attempts ]; do
+          until [ $attempt -gt $max_attempts ]
+          do
             echo "Windows download attempt $attempt of $max_attempts..."
             if chmod +x scripts/download-uc-binary.sh && \
-                 GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh windows "${{ needs.prepare.outputs.uc_version }}" "$BINARY_DIR_BASH"; then
+                 GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh windows "${{ needs.prepare.outputs.uc_version }}" "$BINARY_DIR_BASH"
+            then
               echo "✅ Download successful"
               break
             fi
@@ -425,6 +444,7 @@ jobs:
       - name: 🔧 Package Windows
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x scripts/build-windows-installer.sh
           export NICKEL_DIR=$(echo "${{ github.workspace }}" | sed 's/\\/\//g')
           export BINARY_DIR=$(echo "${{ env.BINARY_DIR }}" | sed 's/\\/\//g')
@@ -437,11 +457,14 @@ jobs:
       - name: ✅ Verify Artifacts
         shell: bash
         run: |
+          set -euo pipefail
           cd "$(echo "${{ github.workspace }}" | sed 's/\\/\//g')/dist" || exit 1
-          for f in *.exe *.zip; do
+          for f in *.exe *.zip
+          do
             [ -f "$f" ] || continue
             size=$(stat -c%s "$f" 2>/dev/null || wc -c < "$f")
-            if [ "$size" -lt 80000000 ]; then
+            if [ "$size" -lt 80000000 ]
+            then
               echo "❌ ERROR: $f too small ($size bytes)"
               exit 1
             fi
@@ -478,10 +501,11 @@ jobs:
 
       - name: 📋 Prepare Release Assets
         run: |
+          set -euo pipefail
           mkdir -p final_assets
-          find artifacts -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} final_assets/ \;
+          find artifacts -type f \( -name "*.deb" -o -name "*.dmg" -o -name "*.exe" -o -name "*.zip" -o -name "*.sha256" \) -exec cp {} final_assets/ \;
           cd final_assets
-          sha256sum *.deb *.AppImage *.dmg *.exe *.zip > combined_checksums.sha256 2>/dev/null || true
+          sha256sum *.deb *.dmg *.exe *.zip > combined_checksums.sha256 2>/dev/null || true
 
       - name: 🏷️ Generate SBOM (Software Bill of Materials)
         uses: anchore/sbom-action@v0.17.0
@@ -513,7 +537,7 @@ jobs:
             ### 🖼️ Platform Support
             | Platform | Status |
             |---------|--------|
-            | Linux (.deb/.AppImage) | ✅ Stable |
+            | Linux (.deb) | ✅ Stable |
             | macOS (.dmg) | ✅ Stable |
             | Windows (.exe) | ✅ Stable |
           files: final_assets/**/*
@@ -526,6 +550,7 @@ jobs:
       - name: 📊 Generate Release Summary
         if: always()
         run: |
+          set -euo pipefail
           echo "### 🛡️ Nickel Browser Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
@@ -536,7 +561,8 @@ jobs:
           echo "| **Linux Build** | ${{ needs.build-linux.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **macOS Build** | ${{ needs.build-macos.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Windows Build** | ${{ needs.build-windows.result }} |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.create_release.outputs.html_url }}" != "" ]; then
+          if [ "${{ steps.create_release.outputs.html_url }}" != "" ]
+          then
             echo "| **Release URL** | [View](${{ steps.create_release.outputs.html_url }}) |" >> $GITHUB_STEP_SUMMARY
           fi
           echo "| **Status** | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
@@ -565,7 +591,7 @@ jobs:
 
             ---
             **Artifacts:**
-            - Linux: .deb + AppImage
+            - Linux: .deb
             - macOS: .dmg
             - Windows: .exe
 
