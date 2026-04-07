@@ -1,7 +1,6 @@
 # Nickel Browser Privacy Policy
 
 **Effective Date:** April 12, 2026
-
 **Last Updated:** January 1, 2026
 
 ---
@@ -16,7 +15,7 @@ Nickel Browser is designed from the ground up to collect zero data about you. We
 
 ## What We Don't Collect
 
-Unlike most browsers, Nickel Browser explicitly does NOT collect:
+Unlike most browsers, Nickel Browser explicitly does **NOT** collect:
 
 | Data Type | Nickel | Typical Browsers |
 |-----------|--------|------------------|
@@ -42,11 +41,11 @@ Everything happens on your device:
 
 ### Network Connections
 
-Nickel Browser makes network connections ONLY for:
-1. **Web browsing** — to sites you visit
-2. **Filter list updates** — from trusted sources (EasyList, etc.)
-3. **HTTPS certificate validation** — standard security
-4. **DNS queries** — via your configured DNS (default: Quad9 DoH)
+Nickel Browser makes network connections **ONLY** for:
+1. **Web browsing** — to sites you visit.
+2. **Filter list updates** — from trusted sources (EasyList, etc.).
+3. **HTTPS certificate validation** — standard security.
+4. **DNS queries** — via your configured DNS (default: Quad9 DoH).
 
 ### Optional Features
 
@@ -61,14 +60,25 @@ Some optional features may connect to external services:
 
 All these are **opt-in** or use privacy-preserving methods.
 
+## Network Request Audit Table
+
+You can verify our privacy claims using network analysis tools (e.g., Wireshark). You will find that Nickel makes zero unexpected connections.
+
+| Domain | Purpose | Required? | Can Disable? |
+|--------|---------|-----------|-------------|
+| `update.nickel-browser.org` (future) | Update checks | Optional | ✅ Yes, fully disableable |
+| `api.github.com` | Release downloads | Only on manual update | N/A |
+| `*.google.com` | ❌ **Blocked by default** | Never | N/A |
+| `*.brave.com` | ❌ **Never contacts** | Never | N/A |
+| `*.doubleclick.net` | ❌ **Blocked by uBlock** | Never | N/A |
+
 ## Your Control
 
 You have complete control over your data:
-
-- Clear all data with one click
-- Export/import your data anytime
-- Disable any feature you don't want
-- Verify our claims — we're open source
+- Clear all data with one click.
+- Export/import your data anytime.
+- Disable any feature you don't want.
+- Verify our claims — we're open source.
 
 ## Third-Party Services
 
@@ -82,9 +92,9 @@ We don't use:
 ## Updates
 
 Update checks (if enabled):
-- Contact GitHub releases API
-- No identifying information sent
-- Can be disabled entirely
+- Contact GitHub releases API.
+- No identifying information sent.
+- Can be disabled entirely.
 
 ## Children's Privacy
 
@@ -93,20 +103,20 @@ Nickel Browser does not knowingly collect data from anyone, including children u
 ## Changes to This Policy
 
 If we ever change this policy (unlikely), we will:
-1. Post the changes prominently
-2. Require explicit user consent
-3. Never retroactively apply to existing users
+1. Post the changes prominently.
+2. Require explicit user consent.
+3. Never retroactively apply to existing users.
 
 ## Verification
 
 Don't trust us — verify:
-- Source code: https://github.com/Nickel-Browser/Nickel-Browser
-- Network monitoring: Use Wireshark to verify our claims
-- Build yourself: Follow BUILD.md
+- Source code: [GitHub Repository](https://github.com/Nickel-Browser/Nickel-Browser)
+- Network monitoring: Use Wireshark to verify our claims.
+- Build yourself: Follow [BUILD.md](../docs/BUILD.md).
 
 ## Contact
 
-Privacy questions: privacy@nickel-browser.org
+Privacy questions: **sho.islam0311@proton.me**
 
 ---
 
