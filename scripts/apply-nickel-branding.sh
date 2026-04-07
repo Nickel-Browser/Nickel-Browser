@@ -22,7 +22,8 @@ fi
 # Find the Chromium root in the binary dir (it often has a subdir)
 CHROME_DIR=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome" -o -name "chromium" -type f | xargs dirname | head -n 1)
 
-if [ -z "$CHROME_DIR" ]; then
+if [ -z "$CHROME_DIR" ]
+then
     echo "⚠️  Binary directory structure not recognized. Assuming $BINARY_DIR as root."
     CHROME_DIR="$BINARY_DIR"
 fi
@@ -34,7 +35,8 @@ echo "📍 BINARY_ROOT: $CHROME_DIR"
 # For a pre-built binary, we mainly replace icons and sidecar files
 
 # Linux/Windows icon replacement (where applicable)
-if [ -d "$NICKEL_DIR/src/nickel/branding" ]; then
+if [ -d "$NICKEL_DIR/src/nickel/branding" ]
+then
     echo "🎨 Replacing branding assets..."
     # Replace resources.pak or specific icons if possible
     # In a binary-patch approach, we often replace the .desktop file and the main icons
