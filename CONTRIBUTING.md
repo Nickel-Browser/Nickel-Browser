@@ -1,6 +1,6 @@
 # Contributing to Nickel Browser
 
-Thank you for your interest in contributing to Nickel Browser! 🪙🐅
+Thank you for your interest in contributing to Nickel Browser! 🪙🐅 We welcome contributors of all skill levels and backgrounds.
 
 ## 🤝 How to Contribute
 
@@ -16,45 +16,33 @@ Thank you for your interest in contributing to Nickel Browser! 🪙🐅
 
 ### Suggesting Features
 
-1. Open a [Feature Request](https://github.com/Nickel-Browser/Nickel-Browser/issues/new?template=feature_request.md)
+1. Open a [Feature Request](https://github.com/Nickel-Browser/Nickel-Browser/issues/new?template=feature_request.yml)
 2. Describe the feature and why it aligns with Nickel's privacy-first philosophy
 3. Reference community demand (Reddit threads, forum posts, etc.)
 
 ### Code Contributions
 
-#### Setting Up Development Environment
+#### Development Environment Setup Checklist
 
-```bash
-# 1. Fork the repo on GitHub
-# 2. Clone your fork
-git clone https://github.com/GITHUB_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
-
-# 3. Add upstream remote
-git remote add upstream https://github.com/Nickel-Browser/Nickel-Browser.git
-
-# 4. Create a branch
-git checkout -b feature/your-feature-name
-```
+- [ ] Fork the repository on GitHub
+- [ ] Clone your fork: `git clone https://github.com/YOUR_USERNAME/Nickel-Browser.git`
+- [ ] Add upstream remote: `git remote add upstream https://github.com/Nickel-Browser/Nickel-Browser.git`
+- [ ] Install prerequisites (see [BUILD.md](docs/BUILD.md))
+- [ ] Create a feature branch: `git checkout -b feat/amazing-feature`
+- [ ] Verify you can build the project using Method A (Binary Repagging)
 
 #### Development Workflow
 
-```bash
-# Sync with upstream
-git fetch upstream
-git rebase upstream/main
-
-# Make your changes
-# ... edit files ...
-
-# Commit with clear message
-git commit -m "feat: add vertical tabs sidebar"
-
-# Push to your fork
-git push origin feature/your-feature-name
-
-# Create Pull Request on GitHub
-```
+1. **Sync with Upstream:**
+   ```bash
+   git fetch upstream
+   git rebase upstream/main
+   ```
+2. **Make Changes:** Edit files, add features, or fix bugs.
+3. **Test Your Changes:** (See Testing Requirements below)
+4. **Commit:** Follow the Conventional Commits format.
+5. **Push:** `git push origin feat/amazing-feature`
+6. **Pull Request:** Open a PR on the main repository.
 
 #### Commit Message Format
 
@@ -68,7 +56,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 [optional footer]
 ```
 
-Types:
+**Types:**
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -78,29 +66,23 @@ Types:
 - `test`: Tests
 - `chore`: Build process, dependencies
 
-Examples:
+**Examples:**
 ```
 feat(adblock): add new filter list updater
+```
+```
 fix(fingerprint): correct canvas noise algorithm
+```
+```
 docs(readme): update build instructions
 ```
 
 ### Patch Contributions
 
 For Chromium patches:
-
-1. Place patches in `patches/extra/`
-2. Add patch to `patches/series` file
-3. Test with `./scripts/apply-patches.sh`
-4. Document what the patch does in commit message
-
-### Filter Lists
-
-To add default filter lists:
-
-1. Edit `src/nickel/adblock/filter-lists.json`
-2. Ensure list is compatible with uBlock Origin format
-3. Verify license allows redistribution
+1. Place patches in `patches/`
+2. Document what the patch does in the commit message.
+3. Verify application using `docs/legacy/apply_patches.sh` (for source builds).
 
 ### Documentation
 
@@ -110,93 +92,49 @@ Help improve docs:
 - Add translations
 - Create tutorials
 
+## 🧪 Testing Requirements
+
+Before submitting a Pull Request, please ensure:
+
+1. **Build Success:** Your changes must not break the build. Run a binary build to verify.
+2. **Linting:** (If applicable) Ensure your code follows the project's style.
+3. **Functionality:** Manually verify the feature or fix works as expected in the browser.
+4. **No Regressions:** Check that existing features still work.
+
 ## 🏷️ Labels
 
-We use these labels:
+We use these labels to organize our work:
 
 | Label | Meaning |
 |-------|---------|
-| `good first issue` | Beginner-friendly |
+| `good first issue` | Beginner-friendly tasks |
 | `help wanted` | Community assistance needed |
 | `privacy` | Privacy-related feature |
 | `adblock` | Ad-blocking related |
 | `bug` | Confirmed bug |
 | `feature` | Feature request |
-| `linux` | Linux-specific |
-| `windows` | Windows-specific |
-| `macos` | macOS-specific |
-
-## 🧪 Testing
-
-Before submitting PR:
-
-```bash
-# Run patch validation
-./scripts/validate-patches.sh
-
-# Test build (if you have resources)
-./scripts/build.sh
-
-# Check code style
-./scripts/lint.sh
-```
-
-## 📋 Code Standards
-
-### C++ Patches
-
-- Follow Chromium style guide
-- Use 2-space indentation
-- Max 80 characters per line
-- Comment complex logic
-
-### JavaScript
-
-- ES6+ syntax
-- 2-space indentation
-- JSDoc comments for functions
-- No `var`, use `let`/`const`
-
-### Python
-
-- PEP 8 compliant
-- Python 3.9+ compatible
-- Type hints where applicable
 
 ## 🎯 Priority Areas
 
 We especially need help with:
-
-1. **Performance optimizations** for low-end hardware
-2. **Additional fingerprinting protections**
-3. **Filter list curation** for piracy sites
-4. **UI/UX improvements**
-5. **Documentation** and tutorials
-6. **Translations**
-7. **Testing** on various platforms
+1. **Performance optimizations** for low-end hardware.
+2. **Additional fingerprinting protections**.
+3. **Filter list curation** for piracy sites and regional trackers.
+4. **UI/UX improvements** and theme consistency.
+5. **Documentation** and translations.
 
 ## 🙏 Recognition
 
-Contributors will be:
-- Listed in CONTRIBUTORS.md
-- Mentioned in release notes
-- Credited in about page (with permission)
-
-## 💬 Communication
-
-- **Discord**: Real-time chat
-- **Matrix**: Privacy-focused alternative
-- **GitHub Issues**: Bug reports and features
-- **GitHub Discussions**: General questions
+Contributors will be listed in `CONTRIBUTORS.md` (coming soon) and mentioned in release notes.
 
 ## ⚖️ Code of Conduct
 
-See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+We are committed to providing a welcoming and inspiring community for all. Please see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
 
 ## 📝 License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project (BSD-3-Clause for Chromium parts, GPLv3 for Nickel additions).
+By contributing, you agree that your contributions will be licensed under the project's dual-license (BSD-3-Clause and GPLv3).
 
 ---
 
-Thank you for making Nickel better!🐅
+Thank you for making Nickel better! 🐅

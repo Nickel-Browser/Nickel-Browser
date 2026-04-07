@@ -11,7 +11,6 @@ Nickel Browser is built with security as a foundational principle. We believe in
 ## 🛡️ Security Features
 
 Nickel Browser includes these security protections by default:
-
 - HTTPS-Only Mode
 - DNS-over-HTTPS (Quad9)
 - Certificate Transparency enforcement
@@ -26,10 +25,7 @@ Nickel Browser includes these security protections by default:
 
 **Please DO NOT open public issues for security vulnerabilities.**
 
-Instead, report privately:
-
-### Method 1: Email (Preferred)
-Send details to: **security@nickel-browser.org**
+Instead, report privately to: **sho.islam0311@proton.me**
 
 Include:
 - Description of the vulnerability
@@ -38,33 +34,31 @@ Include:
 - Suggested fix (if any)
 - Your contact information for follow-up
 
-### Method 2: GitHub Private Vulnerability Reporting
-1. Go to [Security Advisories](https://discord.gg/fBebZDbEhH/security/advisories)
-2. Click "New draft security advisory"
-3. Fill in the details
-
 ## ⏱️ Response Timeline
 
 | Stage | Timeline |
 |-------|----------|
-| Initial response | Within >48 hours |
+| Initial response | Within 48 hours |
 | Vulnerability assessment | Within 7 days |
 | Patch development | Based on severity |
 | Public disclosure | After patch release |
 
+## 📦 Supported Versions
+
+| Version | Status | Security Update |
+|---------|--------|-----------------|
+| v1.0.x  | Current | ✅ Active       |
+| < v1.0  | Legacy  | ❌ Not Supported |
+
 ## 🏆 Security Hall of Fame
 
-We publicly acknowledge security researchers who responsibly disclose vulnerabilities:
-
-| Researcher | Vulnerability | Date |
-|------------|---------------|------|
-| *Your name here* | - | - |
+We publicly acknowledge security researchers who responsibly disclose vulnerabilities.
 
 ## 🔄 Security Update Process
 
-1. **Critical**: Emergency release within When I Got time Cause i am Single Dev So.
-2. **High**: Next scheduled release
-3. **Medium/Low**: Bundled with regular updates
+1. **Critical**: Emergency release within 48-72 hours.
+2. **High**: Next scheduled release (within 7 days).
+3. **Medium/Low**: Bundled with regular updates.
 
 ## 🧪 Security Testing
 
@@ -83,18 +77,6 @@ When contributing code, ensure:
 - [ ] Proper memory management (no leaks)
 - [ ] No bypass of security policies
 - [ ] Tests include security scenarios
-
-## 🔗 External Security Resources
-
-- [Chromium Security](https://www.chromium.org/Home/chromium-security/)
-- [OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/)
-- [CVE Database](https://cve.mitre.org/)
-
-## 📞 Contact
-
-For security matters only: sho.islam0311@proton.me
-
-For general questions: Use GitHub Discussions or Discord
 
 ---
 

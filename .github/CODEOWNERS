@@ -1,0 +1,8 @@
+# CODEOWNERS for Nickel Browser
+
+# Global owners
+*       @Shoislam0311
+
+# Workflows and infrastructure
+.github/workflows/ @Shoislam0311
+scripts/ @Shoislam0311
