@@ -1,14 +1,45 @@
+# Dependabot Configuration
+# LOCKED DOWN - Do NOT auto-upgrade actions to major versions without manual review
+# Major version bumps (v5→v6, v4→v5 etc.) often have BREAKING CHANGES
+
 version: 2
+
 updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      time: "04:00"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps):"
+    labels: ["dependencies"]
+    reviewers: ["Shoislam0311"]
+    assignees: ["Shoislam0311"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "github-actions"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps):"
+    labels: ["dependencies", "ci"]
+    reviewers: ["Shoislam0311"]
+    assignees: ["Shoislam0311"]
+    # IMPORTANT: Pin specific versions to prevent breaking changes
+    # Only allow MINOR version patches (X.Y.Z → X.Y.Z+1)
+    # NEVER allow MAJOR version bumps (X.Y.Z → (X+1).0.0) without PR approval
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      github-actions:
+      actions:
         patterns:
-          - "*"
+          - "actions/checkout"
+          - "actions/upload-artifact"
+          - "actions/download-artifact"
+          - "apple-actions/*"
+          - "actions/configure-pages"
+          - "actions/upload-pages-artifact"
