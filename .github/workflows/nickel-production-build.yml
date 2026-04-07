@@ -54,9 +54,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_type != 'tag' }}
 
 permissions:
-  contents: read
+  contents: write
   packages: read
-  releases: write
   id-token: write
   actions: read
   checks: write
@@ -64,8 +63,6 @@ permissions:
 env:
   NICKEL_VERSION: "1.0.0-alpha"
   CHROMIUM_CHANNEL: "Stable"
-  # Force Node 24 for JS actions (security best practice)
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 defaults:
   run:
@@ -114,8 +111,16 @@ jobs:
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
           else
             # Check latest UC release from GitHub API
-            LATEST=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            echo "📡 Fetching latest ungoogled-chromium version..."
+            LATEST=$(curl -sf --connect-timeout 30 --max-time 300 \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" | jq -r '.tag_name')
+
+            if [ -z "$LATEST" ] || [ "$LATEST" == "null" ]; then
+              echo "❌ Error: Could not fetch latest version from GitHub API"
+              exit 1
+            fi
+
             VERSION="$LATEST"
             RELEASE_TYPE="nightly"
           fi
@@ -131,8 +136,19 @@ jobs:
           set -euo pipefail
 
           INPUT_VERSION="${{ github.event.inputs.chromium_version }}"
-          LATEST=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          echo "📡 Checking ungoogled-chromium version..."
+          LATEST=$(curl -sf --connect-timeout 30 --max-time 300 \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" | jq -r '.tag_name')
+
+          if [ -z "$LATEST" ] || [ "$LATEST" == "null" ]; then
+             if [ -n "$INPUT_VERSION" ]; then
+               LATEST="$INPUT_VERSION"
+             else
+               echo "❌ Error: Failed to fetch latest version and no manual version provided"
+               exit 1
+             fi
+          fi
 
           if [ -n "$INPUT_VERSION" ]
           then
@@ -159,14 +175,15 @@ jobs:
           echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
           echo "uc_version=$LATEST" >> $GITHUB_OUTPUT
 
-      - name: 💾 Persist Version (if not PR)
-        if: success() && github.event_name != 'pull_request'
+      - name: 💾 Persist Version (on Success)
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
+          set -euo pipefail
           echo "${{ steps.check.outputs.uc_version }}" > .chromium_version
           git config user.name "Nickel CI Bot"
           git config user.email "ci@nickel-browser.org"
           git add .chromium_version
-          git commit -m "chore: track build of Chromium ${{ steps.check.outputs.uc_version }}" || true
+          git commit -m "chore: track build of Chromium ${{ steps.check.outputs.uc_version }} [skip ci]" || true
           git push || true
 
   # ==========================================================================
@@ -490,7 +507,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      releases: write
       id-token: write
     steps:
       - name: 📥 Download All Artifacts
