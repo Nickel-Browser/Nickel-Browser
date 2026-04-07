@@ -1,29 +1,26 @@
-# Support for Nickel Browser
+# Nickel Browser Support
 
-We're here to help you with any questions or issues you may have.
+## 📧 Email Support
+For general support inquiries, questions, or troubleshooting, please contact:
+**sho.islam0311@proton.me**
 
-## 🤝 Community Support
+## 💬 Community Support
+Join our community channels for real-time help and discussions:
+- **Discord**: [Join our server](https://discord.gg/invite/link)
+- **Matrix**: [#nickel-browser:matrix.org](https://matrix.to/#/#nickel-browser:matrix.org)
+- **Twitter/X**: [@NickelBrowser](https://twitter.com/NickelBrowser)
 
-The best way to get support is through our community channels:
-
-- **Discord:** [Join our server](https://discord.gg/invite/link) (Real-time help and community discussion)
-- **Matrix:** [#nickel-browser:matrix.org](https://matrix.to/#/#nickel-browser:matrix.org) (Privacy-focused community chat)
-- **GitHub Discussions:** [Ask questions](https://github.com/Nickel-Browser/Nickel-Browser/discussions) (Great for feature requests and Q&A)
-
-## 🐛 Report a Bug
-
-If you've found a bug, please report it via [GitHub Issues](https://github.com/Nickel-Browser/Nickel-Browser/issues).
-
-## 🔐 Security Support
-
-For security-related issues, please see our [Security Policy](SECURITY.md). Do not open public issues for security vulnerabilities.
+## 🐛 Bug Reports & Feature Requests
+Please use our [GitHub Issue Tracker](https://github.com/Nickel-Browser/Nickel-Browser/issues) to report bugs or request new features. This helps us track issues and keep the community informed.
 
 ## ⏱️ Response Times
+We are a community-driven project. We strive to respond to all inquiries within **48 hours**, but please understand that response times may vary based on volunteer availability.
 
-We are a community-driven project and will do our best to respond promptly.
-- **Critical Issues:** Within 48-72 hours.
-- **General Support:** Within 3-7 days.
+## 🔐 Security Issues
+Please see our [Security Policy](SECURITY.md) for instructions on how to report security vulnerabilities privately. **DO NOT** use public issue trackers or community channels for security reports.
+
+## 📚 Documentation
+Check our [Documentation](docs/) and [README.md](README.md) for installation guides, build instructions, and FAQs.
 
 ---
-
-Thank you for being part of the Nickel Browser community! 🪙🐅
+Thank you for using Nickel Browser! 🐅🪙

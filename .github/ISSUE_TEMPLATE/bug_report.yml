@@ -1,62 +1,63 @@
-name: Bug report
-description: Create a report to help us improve.
-labels: [bug]
+name: Bug Report
+description: Report a bug to help us improve Nickel Browser.
+title: "[BUG]: "
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
-  - type: textarea
-    id: what-happened
-    attributes:
-      label: What happened?
-      description: Also tell us what you expected to happen.
-      placeholder: Tell us what you see!
-    validations:
-      required: true
-  - type: textarea
-    id: reproduction-steps
-    attributes:
-      label: How can we reproduce it?
-      description: Steps to reproduce the behavior.
-      placeholder: |
-        1. Open Nickel
-        2. Go to '...'
-        3. Click on '....'
-        4. See error
-    validations:
-      required: true
+        Thanks for taking the time to report a bug! Please follow these guidelines to help us fix it efficiently.
   - type: input
     id: version
     attributes:
-      label: Nickel version
-      description: Found in 'About Nickel Browser'.
-      placeholder: e.g. 1.0.0-alpha
+      label: Nickel Version
+      description: |
+        What version of Nickel Browser are you using? (Check Settings > About Nickel)
+      placeholder: e.g., 1.0.0-alpha
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: os
     attributes:
       label: Operating System
-      options:
-        - Windows
-        - macOS
-        - Linux (Debian/Ubuntu/Zorin)
-        - Linux (Other)
-        - Other
+      description: |
+        What operating system and version are you using?
+      placeholder: e.g., Windows 11, Ubuntu 22.04, macOS Sonoma
     validations:
       required: true
   - type: textarea
-    id: additional-info
+    id: repro
     attributes:
-      label: Additional context
-      description: Add any other context about the problem here.
-  - type: checkboxes
-    id: checkboxes
+      label: Steps to Reproduce
+      description: |
+        Please provide clear, numbered steps to reproduce the issue.
+      placeholder: |
+        1. Open Nickel Browser.
+        2. Visit website.com.
+        3. Click on the 'X' button.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
     attributes:
-      label: Validations
-      options:
-        - label: I have searched for existing issues.
-          required: true
-        - label: I am using the latest version of Nickel Browser.
-          required: true
+      label: Expected Behavior
+      description: |
+        What did you expect to happen?
+      placeholder: e.g., The 'X' button should close the window.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: |
+        What actually happened?
+      placeholder: e.g., The 'X' button does nothing.
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other screenshots, logs, or context about the bug here.

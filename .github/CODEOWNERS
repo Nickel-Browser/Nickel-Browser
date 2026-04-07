@@ -1,8 +1,20 @@
-# CODEOWNERS for Nickel Browser
+# Nickel Browser Code Owners
 
-# Global owners
-*       @Shoislam0311
-
-# Workflows and infrastructure
+# workflows require specific review
 .github/workflows/ @Shoislam0311
+
+# core scripts
 scripts/ @Shoislam0311
+
+# patches
+patches/ @Shoislam0311
+
+# branding assets
+src/nickel/branding/ @Shoislam0311
+
+# documentation
+docs/ @Shoislam0311
+README.md @Shoislam0311
+CONTRIBUTING.md @Shoislam0311
+SECURITY.md @Shoislam0311
+PRIVACY_POLICY.md @Shoislam0311
