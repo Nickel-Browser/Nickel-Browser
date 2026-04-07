@@ -157,14 +157,14 @@ jobs:
           else
             echo "Latest ungoogled-chromium: $LATEST"
           fi
-          
+
           CURRENT="none"
           if [ -f .chromium_version ]
           then
             CURRENT=$(cat .chromium_version)
           fi
           echo "Current built version: $CURRENT"
-          
+
           SHOULD_BUILD="false"
           # Build if version changed, or manual trigger, or tag push, or not on schedule
           if [ "$LATEST" != "$CURRENT" ] || [ "${{ github.event_name }}" != "schedule" ] || [ -n "${{ github.event.inputs.chromium_version }}" ]
@@ -585,7 +585,7 @@ jobs:
           echo "| **SBOM** | ✅ Generated (SPDX JSON) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Checksums** | ✅ Combined SHA256 |" >> $GITHUB_STEP_SUMMARY
 
-      - name: 📧 Notification: Success
+      - name: "📧 Notification: Success"
         if: success() && needs.prepare.outputs.should_build == 'true'
         uses: dawidd6/action-send-mail@v3.11.0
         with:
@@ -613,7 +613,7 @@ jobs:
 
             **Verification:** Check combined_checksums.sha256
 
-      - name: 🚨 Notification: Failure
+      - name: "🚨 Notification: Failure"
         if: failure() && needs.prepare.outputs.should_build == 'true'
         uses: dawidd6/action-send-mail@v3.11.0
         with:
