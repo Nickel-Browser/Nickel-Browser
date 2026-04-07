@@ -51,6 +51,14 @@ fi
 
 # Optional: Add a custom about:nickel page or branding info
 echo "Nickel Browser (Chromium fork)" > "$CHROME_DIR/NICKEL_VERSION"
-echo "Base Chromium Version: $(cat $NICKEL_DIR/.chromium_version)" >> "$CHROME_DIR/NICKEL_VERSION"
+
+# Use UC_VERSION env var if available, otherwise try to read from file
+if [ -n "${UC_VERSION:-}" ]; then
+    echo "Base Chromium Version: $UC_VERSION" >> "$CHROME_DIR/NICKEL_VERSION"
+elif [ -f "$NICKEL_DIR/.chromium_version" ]; then
+    echo "Base Chromium Version: $(cat "$NICKEL_DIR/.chromium_version")" >> "$CHROME_DIR/NICKEL_VERSION"
+else
+    echo "Base Chromium Version: unknown" >> "$CHROME_DIR/NICKEL_VERSION"
+fi
 
 echo "✅ Branding applied (staged for packaging)!"
