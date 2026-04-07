@@ -34,7 +34,7 @@ jobs:
       SRC_DIR: /opt/nickel-src/src
     steps:
       - name: 📥 Checkout Nickel Browser
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Setup Build Environment
         run: |

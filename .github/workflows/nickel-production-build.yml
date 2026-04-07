@@ -57,7 +57,7 @@ jobs:
       nickel_version: ${{ steps.version.outputs.nickel_version }}
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -139,7 +139,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout Nickel Browser
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Build Dependencies
         run: |
@@ -251,7 +251,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Dependencies
         run: |
@@ -363,7 +363,7 @@ jobs:
       BINARY_DIR: ${{ github.workspace }}/uc-binary
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🛠️ Install Dependencies
         shell: pwsh
@@ -477,7 +477,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
