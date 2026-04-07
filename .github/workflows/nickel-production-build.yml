@@ -32,11 +32,11 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
-  id-token: write
+  packages: read
   actions: read
 
 env:
+  # Default version, overridden by prepare job outputs in most steps
   NICKEL_VERSION: "1.0.0-alpha"
 
 defaults:
@@ -49,11 +49,12 @@ jobs:
   # ============================================================================
   prepare:
     name: 🔍 Prepare Build Metadata
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       uc_version: ${{ steps.check.outputs.uc_version }}
       should_build: ${{ steps.check.outputs.should_build }}
       build_date: ${{ steps.date.outputs.date }}
+      nickel_version: ${{ steps.version.outputs.nickel_version }}
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -64,11 +65,24 @@ jobs:
         id: date
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
+      - name: 🔢 Detect Nickel Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [ -f .version ]; then
+            VERSION=$(cat .version)
+          else
+            VERSION="1.0.0-alpha"
+          fi
+          echo "nickel_version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: 🔍 Check Latest UC Version
         id: check
         run: |
           set -euo pipefail
-          LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" | jq -r '.tag_name')
+          # Use portablelinux repo for stable version tracking
+          LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-portablelinux/releases/latest" | jq -r '.tag_name')
 
           # Priority: Manual input > API Latest
           INPUT_VERSION="${{ github.event.inputs.chromium_version }}"
@@ -101,7 +115,7 @@ jobs:
     name: 🐧 Build Linux (x64)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       NICKEL_DIR: ${{ github.workspace }}
@@ -120,13 +134,29 @@ jobs:
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
-          key: uc-binary-linux-${{ needs.prepare.outputs.uc_version }}
+          key: uc-binary-linux-${{ needs.prepare.outputs.uc_version }}-${{ hashFiles('scripts/apply-nickel-branding.sh', 'scripts/build-deb.sh', 'scripts/build-appimage.sh') }}
 
-      - name: 📥 Download UC Binary
+      - name: 📥 Download UC Binary (with retry)
         if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
         run: |
           chmod +x scripts/download-uc-binary.sh
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh linux "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"
+          max_attempts=3
+          attempt=1
+          until [ $attempt -gt $max_attempts ]; do
+            echo "Download attempt $attempt of $max_attempts..."
+            if GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh linux "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
+              echo "✅ Download successful"
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_attempts ]; then
+              sleep $((attempt * 10))
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Failed to download after $max_attempts attempts"
+            exit 1
+          fi
 
       - name: 🔧 Apply Branding & Repackage
         run: |
@@ -136,7 +166,7 @@ jobs:
 
           export NICKEL_DIR=${{ env.NICKEL_DIR }}
           export BINARY_DIR=${{ env.BINARY_DIR }}
-          export NICKEL_VERSION=${{ env.NICKEL_VERSION }}
+          export NICKEL_VERSION=${{ needs.prepare.outputs.nickel_version }}
 
           ./scripts/apply-nickel-branding.sh
           ./scripts/build-deb.sh
@@ -146,6 +176,42 @@ jobs:
           mv *.deb *.AppImage dist/ 2>/dev/null || true
           cd dist
           sha256sum * > checksums-linux.sha256
+
+      - name: ✅ Verify Artifacts
+        run: |
+          echo "🔍 Verifying build artifacts..."
+          cd dist || exit 1
+          for pattern in *.deb *.AppImage; do
+            if ls $pattern 1>/dev/null 2>&1; then
+              for f in $pattern; do
+                size=$(stat -c%s "$f")
+                if [ "$size" -lt 10000000 ]; then
+                  echo "❌ ERROR: File $f is too small ($size bytes). Package may be corrupted."
+                  exit 1
+                fi
+                echo "✅ $f ($(( size / 1048576 ))MB)"
+              done
+            else
+              echo "❌ ERROR: No files matching $pattern found"
+              exit 1
+            fi
+          done
+          if [ ! -s checksums-linux.sha256 ]; then
+            echo "❌ ERROR: Checksums file missing or empty"
+            exit 1
+          fi
+          echo "✅ All artifact validations passed"
+
+      - name: 📝 Sign Linux Artifacts (GPG)
+        if: runner.os == 'Linux' && secrets.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import --passphrase "$GPG_PASSPHRASE" 2>/dev/null || true
+          for f in dist/*.{deb,AppImage}; do
+            [ -f "$f" ] && gpg --armor --detach-sign --passphrase "$GPG_PASSPHRASE" "$f" || true
+          done
 
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -162,7 +228,6 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
     runs-on: macos-latest
-    continue-on-error: true
     timeout-minutes: 30
     env:
       NICKEL_DIR: ${{ github.workspace }}
@@ -179,25 +244,81 @@ jobs:
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
-          key: uc-binary-macos-${{ needs.prepare.outputs.uc_version }}
+          key: uc-binary-macos-${{ needs.prepare.outputs.uc_version }}-${{ hashFiles('scripts/build-dmg.sh') }}
 
-      - name: 📥 Download UC Binary
+      - name: 📥 Download UC Binary (with retry)
         if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
         run: |
           chmod +x scripts/download-uc-binary.sh
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh macos "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"
+          max_attempts=3
+          attempt=1
+          until [ $attempt -gt $max_attempts ]; do
+            echo "Download attempt $attempt of $max_attempts..."
+            if GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh macos "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
+              echo "✅ Download successful"
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_attempts ]; then
+              sleep $((attempt * 10))
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Failed to download after $max_attempts attempts"
+            exit 1
+          fi
 
       - name: 🔧 Package macOS Artifacts
         run: |
           chmod +x scripts/build-dmg.sh
           export NICKEL_DIR=${{ env.NICKEL_DIR }}
           export BINARY_DIR=${{ env.BINARY_DIR }}
-          export NICKEL_VERSION=${{ env.NICKEL_VERSION }}
+          export NICKEL_VERSION=${{ needs.prepare.outputs.nickel_version }}
           export DIST_DIR=${{ github.workspace }}/dist
 
           ./scripts/build-dmg.sh
           cd dist
           shasum -a 256 * > checksums-macos.sha256
+
+      - name: ✅ Verify Artifacts
+        run: |
+          echo "🔍 Verifying build artifacts..."
+          cd dist || exit 1
+          for pattern in *.dmg; do
+            if ls $pattern 1>/dev/null 2>&1; then
+              for f in $pattern; do
+                # Use macOS-compatible stat or find to get file size
+                size=$(stat -f%z "$f" 2>/dev/null || find "$f" -printf "%s" 2>/dev/null || stat -c%s "$f")
+                if [ "$size" -lt 10000000 ]; then
+                  echo "❌ ERROR: File $f is too small ($size bytes). Package may be corrupted."
+                  exit 1
+                fi
+                echo "✅ $f ($(( size / 1048576 ))MB)"
+              done
+            else
+              echo "❌ ERROR: No files matching $pattern found"
+              exit 1
+            fi
+          done
+          if [ ! -s checksums-macos.sha256 ]; then
+            echo "❌ ERROR: Checksums file missing or empty"
+            exit 1
+          fi
+          echo "✅ All artifact validations passed"
+
+      - name: 🍎 Sign macOS Artifacts
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Sign DMG
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        run: |
+          codesign --force --deep --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+            --options runtime dist/*.dmg
+          echo "✅ macOS artifact signed"
 
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -214,7 +335,6 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 30
     env:
       NICKEL_DIR: ${{ github.workspace }}
@@ -233,15 +353,33 @@ jobs:
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
-          key: uc-binary-windows-${{ needs.prepare.outputs.uc_version }}
+          key: uc-binary-windows-${{ needs.prepare.outputs.uc_version }}-${{ hashFiles('scripts/build-windows-installer.sh') }}
 
-      - name: 📥 Download UC Binary
+      - name: 📥 Download UC Binary (with retry)
+        if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
         shell: bash
         run: |
           # Use forward slashes for Windows paths in bash
           NICKEL_DIR_BASH=$(echo "${{ github.workspace }}" | sed 's/\\/\//g')
           BINARY_DIR_BASH=$(echo "${{ env.BINARY_DIR }}" | sed 's/\\/\//g')
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh windows "${{ needs.prepare.outputs.uc_version }}" "$BINARY_DIR_BASH"
+          chmod +x scripts/download-uc-binary.sh
+          max_attempts=3
+          attempt=1
+          until [ $attempt -gt $max_attempts ]; do
+            echo "Download attempt $attempt of $max_attempts..."
+            if GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} ./scripts/download-uc-binary.sh windows "${{ needs.prepare.outputs.uc_version }}" "$BINARY_DIR_BASH"; then
+              echo "✅ Download successful"
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_attempts ]; then
+              sleep $((attempt * 10))
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Failed to download after $max_attempts attempts"
+            exit 1
+          fi
 
       - name: 🔧 Package Windows Artifacts
         shell: bash
@@ -249,12 +387,53 @@ jobs:
           chmod +x scripts/build-windows-installer.sh
           export NICKEL_DIR=$(echo "${{ github.workspace }}" | sed 's/\\/\//g')
           export BINARY_DIR=$(echo "${{ env.BINARY_DIR }}" | sed 's/\\/\//g')
-          export NICKEL_VERSION=${{ env.NICKEL_VERSION }}
+          export NICKEL_VERSION=${{ needs.prepare.outputs.nickel_version }}
           export DIST_DIR="$NICKEL_DIR/dist"
 
           ./scripts/build-windows-installer.sh
           cd "$DIST_DIR"
           sha256sum * > checksums-windows.sha256
+
+      - name: ✅ Verify Artifacts
+        shell: bash
+        run: |
+          echo "🔍 Verifying build artifacts..."
+          cd dist || exit 1
+          for pattern in *.exe *.zip; do
+            if ls $pattern 1>/dev/null 2>&1; then
+              for f in $pattern; do
+                size=$(stat -c%s "$f")
+                if [ "$size" -lt 10000000 ]; then
+                  echo "❌ ERROR: File $f is too small ($size bytes). Package may be corrupted."
+                  exit 1
+                fi
+                echo "✅ $f ($(( size / 1048576 ))MB)"
+              done
+            else
+              echo "❌ ERROR: No files matching $pattern found"
+              exit 1
+            fi
+          done
+          if [ ! -s checksums-windows.sha256 ]; then
+            echo "❌ ERROR: Checksums file missing or empty"
+            exit 1
+          fi
+          echo "✅ All artifact validations passed"
+
+      - name: 🪟 Sign Windows Artifacts
+        if: runner.os == 'Windows' && secrets.CODESIGN_CERTIFICATE_BASE64 != ''
+        env:
+          CODESIGN_CERTIFICATE_BASE64: ${{ secrets.CODESIGN_CERTIFICATE_BASE64 }}
+          CODESIGN_PASSWORD: ${{ secrets.CODESIGN_PASSWORD }}
+          TIMESTAMP_SERVER: "http://timestamp.digicert.com"
+        shell: pwsh
+        run: |
+          $certPath = "$env:TEMP\cert.pfx"
+          [System.IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:CODESIGN_CERTIFICATE_BASE64))
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            signtool sign /f $certPath /p $env:CODESIGN_PASSWORD /tr $env:TIMESTAMP_SERVER /td sha256 /fd sha256 $_.FullName
+            Write-Host "✅ Signed: $($_.Name)"
+          }
 
       - name: 📤 Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -269,9 +448,17 @@ jobs:
   release:
     name: 🚀 Create Production Release
     needs: [prepare, build-linux, build-macos, build-windows]
-    if: needs.prepare.outputs.should_build == 'true' && needs.build-linux.result == 'success'
+    if: |
+      always() && !cancelled() &&
+      needs.prepare.outputs.should_build == 'true' &&
+      (needs.build-linux.result == 'success' || needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: 📥 Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -285,12 +472,18 @@ jobs:
           cd final_assets
           sha256sum * > combined_checksums.sha256
 
+      - name: 📋 Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          output-file: final_assets/sbom-spdx.json
+          upload-artifact: false
+
       - name: 🏷️ Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.NICKEL_VERSION }}-${{ needs.prepare.outputs.uc_version }}-${{ needs.prepare.outputs.build_date }}
-          name: 🛡️ Nickel Browser ${{ env.NICKEL_VERSION }} (UC ${{ needs.prepare.outputs.uc_version }})
+          tag_name: v${{ needs.prepare.outputs.nickel_version }}-${{ needs.prepare.outputs.uc_version }}-${{ needs.prepare.outputs.build_date }}
+          name: 🛡️ Nickel Browser ${{ needs.prepare.outputs.nickel_version }} (UC ${{ needs.prepare.outputs.uc_version }})
           body: |
             ## 🛡️ Nickel Browser Production Build
             
@@ -314,6 +507,6 @@ jobs:
       - name: 📊 Output Summary
         run: |
           echo "### 🛡️ Nickel Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: ${{ env.NICKEL_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ needs.prepare.outputs.nickel_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- UC Version: ${{ needs.prepare.outputs.uc_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- Release: [${{ steps.create_release.outputs.html_url }}](${{ steps.create_release.outputs.html_url }})" >> $GITHUB_STEP_SUMMARY
