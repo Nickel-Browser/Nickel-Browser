@@ -43,13 +43,22 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
     AUTH_HEADER="-H \"Authorization: token $GITHUB_TOKEN\""
 fi
 
+CURL_OPTS="-sL --connect-timeout 30 --max-time 600"
+
 # Determine if we should use 'latest' or a specific tag
 # Note: tags might slightly differ between repos (e.g. 146.0.7680.177-1 vs 146.0.7680.177-1.1)
 # We'll try to find a release that starts with the base version.
 
 echo "📡 Fetching releases from $REPO..."
 RELEASES_URL="https://api.github.com/repos/$REPO/releases"
-RELEASE_DATA=$(eval curl -sL "$AUTH_HEADER" "$RELEASES_URL")
+RELEASE_DATA=$(eval curl $CURL_OPTS "$AUTH_HEADER" "$RELEASES_URL")
+
+# Check if RELEASE_DATA is a valid JSON array
+if [ -z "$RELEASE_DATA" ] || ! echo "$RELEASE_DATA" | jq -e 'type == "array"' > /dev/null; then
+    echo "❌ Error: Failed to fetch release data from $REPO (expected JSON array)"
+    echo "Response snippet: $(echo "$RELEASE_DATA" | head -c 500)"
+    exit 1
+fi
 
 # Find the best matching release tag
 # If VERSION is 'latest', just get the first one.
@@ -73,7 +82,12 @@ echo "✅ Found matching release: $TARGET_TAG"
 
 # Get the specific release data
 API_URL="https://api.github.com/repos/$REPO/releases/tags/$TARGET_TAG"
-RELEASE_DATA=$(eval curl -sL "$AUTH_HEADER" "$API_URL")
+RELEASE_DATA=$(eval curl $CURL_OPTS "$AUTH_HEADER" "$API_URL")
+
+if [ -z "$RELEASE_DATA" ] || [ "$(echo "$RELEASE_DATA" | jq '.assets')" = "null" ]; then
+    echo "❌ Error: Failed to fetch assets for release $TARGET_TAG"
+    exit 1
+fi
 
 # Extract asset URL
 ASSET_URL=$(echo "$RELEASE_DATA" | jq -r ".assets[] | select(.name | contains(\"$ASSET_PATTERN\")) | .browser_download_url" | head -n 1)
@@ -88,7 +102,7 @@ ASSET_NAME=$(basename "$ASSET_URL")
 mkdir -p "$TARGET_DIR"
 
 echo "⬇️  Downloading $ASSET_NAME..."
-curl -L "$ASSET_URL" -o "$TARGET_DIR/$ASSET_NAME"
+curl -L --fail --connect-timeout 30 --max-time 1800 "$ASSET_URL" -o "$TARGET_DIR/$ASSET_NAME"
 
 # Verify download (check if file size > 0)
 if [ ! -s "$TARGET_DIR/$ASSET_NAME" ]
