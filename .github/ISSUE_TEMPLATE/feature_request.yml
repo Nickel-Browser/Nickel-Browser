@@ -1,37 +1,55 @@
-name: Feature request
-description: Suggest an idea for this project.
-labels: [feature]
+name: Feature Request
+description: Propose a new feature for Nickel Browser.
+title: "[FEAT]: "
+labels: ["feature"]
 body:
-  - type: textarea
-    id: feature-description
+  - type: markdown
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+      value: |
+        Thanks for taking the time to request a feature! Please follow these guidelines to help us build a better browser.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: |
+        What problem does this feature solve? How does it benefit Nickel users?
+      placeholder: |
+        Currently, Nickel users have to manually...
     validations:
       required: true
   - type: textarea
-    id: solution-description
+    id: feature
     attributes:
-      label: Describe the solution you'd like
-      description: A clear and concise description of what you want to happen.
+      label: Feature Description
+      description: |
+        Describe the feature you'd like to see. How would it work?
+      placeholder: |
+        I would like to see a feature that...
     validations:
       required: true
   - type: textarea
-    id: alternatives-description
+    id: privacy
     attributes:
-      label: Describe alternatives you've considered
-      description: A clear and concise description of any alternative solutions or features you've considered.
+      label: Privacy Impact
+      description: |
+        How does this feature align with Nickel's privacy-first philosophy?
+      placeholder: |
+        This feature works entirely locally...
+    validations:
+      required: true
   - type: textarea
-    id: additional-context
+    id: alternatives
     attributes:
-      label: Additional context
-      description: Add any other context or screenshots about the feature request here.
-  - type: checkboxes
-    id: checkboxes
+      label: Alternatives Considered
+      description: |
+        What other solutions have you thought of?
+      placeholder: |
+        An alternative would be to use an extension, but...
+    validations:
+      required: false
+  - type: textarea
+    id: additional
     attributes:
-      label: Validations
-      options:
-        - label: I have searched for existing feature requests.
-          required: true
-        - label: This feature aligns with Nickel's privacy-first mission.
-          required: true
+      label: Additional Context
+      description: |
+        Add any other screenshots, mockups, or context about the feature request here.

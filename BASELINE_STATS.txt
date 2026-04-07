@@ -1,32 +1,7 @@
-Total number of files: 86
-Total lines of code (sh, md, yml):   3410 total
-Current README length: 261 lines
-Current BUILD.md length: 456 lines
-Current CONTRIBUTING.md length: 202 lines
-List of all .md files:
-./docs/SELF_HOSTED_RUNNER.md
-./docs/BUILD.md
-./docs/PRIVACY_POLICY.md
-./CONTRIBUTING.md
-./CODE_OF_CONDUCT.md
-./SECURITY.md
-./README.md
-List of all .sh scripts:
-./scripts/apply_patches.sh
-./scripts/setup.sh
-./scripts/degoogle_chromium.sh
-./scripts/apply-nickel-branding.sh
-./scripts/build-rpm.sh
-./scripts/build-deb.sh
-./scripts/build-windows-installer.sh
-./scripts/download-uc-binary.sh
-./scripts/create-swap.sh
-./scripts/package.sh
-./scripts/build-dmg.sh
-./scripts/fetch-chromium.sh
-./scripts/build-appimage.sh
-./scripts/build.sh
-List of all .yml workflows:
-.github/workflows/nickel-source-build.yml
-.github/workflows/static.yml
-.github/workflows/nickel-production-build.yml
+=== BASELINE STATS (Phase 0) ===
+Total Files: 100
+Total Lines (sh, md, yml):   3981 total
+README.md lines: 369
+docs/BUILD.md lines: 318
+Scripts count: 7
+Workflows count: 3
