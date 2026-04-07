@@ -81,8 +81,25 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          # Use portablelinux repo for stable version tracking
-          LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-portablelinux/releases/latest" | jq -r '.tag_name')
+          # Use portablelinux repo for stable version tracking (primary source)
+          # Retrying up to 3 times to handle GitHub API transient issues
+          max_api_retries=3
+          api_retry_count=1
+          LATEST="null"
+          until [ $api_retry_count -gt $max_api_retries ]; do
+            echo "Fetching latest UC version (attempt $api_retry_count)..."
+            LATEST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-portablelinux/releases/latest" | jq -r '.tag_name')
+            if [ "$LATEST" != "null" ] && [ -n "$LATEST" ]; then
+              break
+            fi
+            api_retry_count=$((api_retry_count + 1))
+            [ $api_retry_count -le $max_api_retries ] && sleep 10
+          done
+
+          if [ "$LATEST" = "null" ] || [ -z "$LATEST" ]; then
+            echo "❌ CRITICAL: Failed to fetch ungoogled-chromium version from GitHub API"
+            exit 1
+          fi
 
           # Priority: Manual input > API Latest
           INPUT_VERSION="${{ github.event.inputs.chromium_version }}"
@@ -237,7 +254,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🛠️ Install Dependencies
-        run: brew install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            brew install jq
+          else
+            echo "jq already installed"
+          fi
 
       - name: 🔄 Cache UC Binary
         uses: actions/cache@v4
@@ -468,13 +490,15 @@ jobs:
       - name: 📋 Prepare Assets
         run: |
           mkdir -p final_assets
-          find artifacts -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.zip" \) -exec cp {} final_assets/ \;
+          # Standard find syntax for better compatibility
+          find artifacts -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.zip" \) -exec cp -v {} final_assets/ \;
           cd final_assets
           sha256sum * > combined_checksums.sha256
 
       - name: 📋 Generate SBOM
         uses: anchore/sbom-action@v0
         with:
+          path: final_assets/
           output-file: final_assets/sbom-spdx.json
           upload-artifact: false
 
