@@ -1,0 +1,1539 @@
+{
+  "$schema": "https://nickel-browser.org/schema/build-prompt/v4.0.json",
+  "$meta": {
+    "prompt_version": "4.0.0",
+    "supersedes": "3.0.0",
+    "reason_for_update": "v3.0 used binary-repagging which only renamed Chromium. v4.0 implements a true source build pipeline identical to how Helium, Bromite, and Cromite build real browsers with real features.",
+    "generated_for": "GitHub Copilot Agent (VS Code MCP Mode)",
+    "required_mcp_servers": [
+      "github",
+      "context7",
+      "playwright",
+      "filesystem",
+      "sequential-thinking",
+      "duckduckgo-search",
+      "firecrawl"
+    ],
+    "required_copilot_mode": "agent",
+    "target_project": "Nickel Browser",
+    "base": "ungoogled-chromium",
+    "strategy": "source-build",
+    "author": "Shoislam0311",
+    "date": "2026-04-11",
+    "reference_implementations": [
+      "https://github.com/ungoogled-software/ungoogled-chromium",
+      "https://github.com/imputnet/helium",
+      "https://github.com/uazo/cromite",
+      "https://github.com/bromite/bromite"
+    ]
+  },
+
+  "$instructions_for_agent": {
+    "behavior": "You are a senior Chromium browser engineer. This JSON is your ONLY source of truth. Execute every phase exactly as written. Before writing any C++ or GN code, use Context7 MCP to verify API names and file paths against the current Chromium source tree. Use Sequential Thinking MCP to plan each phase before executing. Use Filesystem MCP to read/write all local files. Use GitHub MCP for all remote repository operations. Use Playwright MCP for all browser UI tests. Reference the three implementations listed in $meta.reference_implementations as your primary learning source.",
+    "non_negotiable_rules": [
+      "NEVER use binary repagging — this is a full source build",
+      "NEVER use depot_tools — ungoogled-chromium has its own fetch tooling",
+      "NEVER install or reference uBlock Origin as an extension — MV3 broke it on Chromium; use subresource_filter component instead",
+      "NEVER use GitHub-hosted runners for compilation — they lack disk and RAM; self-hosted only",
+      "NEVER add telemetry, analytics, crash reporting, or any Google API keys",
+      "NEVER commit secrets, tokens, or credentials",
+      "NEVER hardcode absolute paths — use environment variables and $(pwd) references",
+      "NEVER skip a verification_gate — each gate must pass before the next phase begins",
+      "ALWAYS port privacy patches from Cromite/Bromite rather than writing from scratch",
+      "ALWAYS pin Chromium version in chromium_version.txt for reproducibility",
+      "ALWAYS use clang, never GCC, for Chromium compilation",
+      "ALWAYS use set -euo pipefail in every shell script"
+    ],
+    "code_style": {
+      "shell": "bash strict mode: set -euo pipefail, all functions documented",
+      "python": "PEP8, type-annotated, Python 3.10+, no external deps beyond stdlib",
+      "cpp": "C++17, Chromium Coding Style (https://chromium.googlesource.com/chromium/src/+/HEAD/styleguide/c++/c++.md)",
+      "gn": "GN build language, verified against current Chromium gn reference",
+      "json": "2-space indent, no trailing commas, no comments",
+      "markdown": "GitHub Flavored Markdown, markdownlint clean",
+      "commit_format": "Conventional Commits: feat|fix|chore|docs|ci|refactor|patch|build(scope): message"
+    }
+  },
+
+  "project": {
+    "name": "Nickel Browser",
+    "codename": "nickel",
+    "tagline": "The Privacy-First Browser That Puts Community Over Corporation",
+    "slogan": "Block Everything. Leak Nothing. Own Your Web.",
+    "version": "1.0.0-alpha",
+    "chromium_version_file": "chromium_version.txt",
+    "uc_revision_file": "revision.txt",
+    "repo": {
+      "org": "Nickel-Browser",
+      "name": "Nickel-Browser",
+      "full": "Nickel-Browser/Nickel-Browser",
+      "url": "https://github.com/Nickel-Browser/Nickel-Browser",
+      "default_branch": "main",
+      "visibility": "public"
+    },
+    "license": {
+      "chromium_components": "BSD-3-Clause",
+      "nickel_custom_code": "GPL-3.0-or-later",
+      "documentation": "CC-BY-SA-4.0",
+      "branding_assets": "CC-BY-NC-ND-4.0"
+    },
+    "maintainer": {
+      "github": "Shoislam0311",
+      "email": "sho.islam0311@proton.me"
+    }
+  },
+
+  "system_requirements": {
+    "critical_note": "These are HARD REQUIREMENTS. Building Chromium from source is resource-intensive. Attempting a source build without meeting these requirements will result in failed builds or out-of-memory errors.",
+    "minimum": {
+      "os": "Ubuntu 22.04 LTS or Debian 12 (Linux is primary; macOS/Windows build support is secondary)",
+      "disk_gb": 250,
+      "ram_gb": 16,
+      "cpu_cores": 8,
+      "python": "3.10+",
+      "git": "2.30+",
+      "node": "18+",
+      "clang": "15+ (do NOT use GCC)",
+      "ninja": "1.11+"
+    },
+    "recommended": {
+      "disk_gb": 400,
+      "ram_gb": 32,
+      "cpu_cores": 16,
+      "note": "With 16 cores, a full build takes approximately 2-3 hours. With 8 cores, expect 4-8 hours."
+    },
+    "what_takes_disk": {
+      "chromium_source": "~35GB",
+      "build_intermediates": "~100-150GB",
+      "final_binary": "~200MB",
+      "total_safe_minimum": "250GB free"
+    },
+    "ci_runner_requirement": "MUST use self-hosted runners. GitHub-hosted runners have max 14GB disk and 7GB RAM — completely insufficient for Chromium source builds."
+  },
+
+  "build_strategy": {
+    "active": "source-build",
+    "why_not_binary_repagging": "Binary repagging only renames/rebrands a pre-built binary. It CANNOT add C++ features, privacy patches, fingerprint protection, source-level ad blocking, WebRTC leak protection, or any of Nickel's core features. Everything in this specification requires source code modification and recompilation.",
+    "pipeline_overview": {
+      "step_1": "Fetch Chromium source via ungoogled-chromium's downloads.py (~35GB, one-time)",
+      "step_2": "Apply ungoogled-chromium patch series (removes all Google infrastructure)",
+      "step_3": "Run ungoogled-chromium binary pruning (removes proprietary blobs)",
+      "step_4": "Run ungoogled-chromium domain substitution (kills Google domain hardcoding)",
+      "step_5": "Apply Nickel's own patch series (privacy + features + branding + adblocking)",
+      "step_6": "Replace branding resources (icons, strings, NTP)",
+      "step_7": "GN configuration (args.gn with Nickel-specific flags)",
+      "step_8": "ninja compilation (~4-8 hours full, ~10-30 min incremental)",
+      "step_9": "Platform packaging (.deb / .AppImage / .dmg / .exe)"
+    },
+    "reference_build_commands": {
+      "note": "These are the actual commands scripts/build-nickel.sh must orchestrate",
+      "fetch_source": "python3 utils/downloads.py fetch downloads.ini chromium-src/",
+      "apply_uc_patches": "python3 utils/patches.py apply chromium-src/ patches/ungoogled-chromium/",
+      "prune_binaries": "python3 utils/prune_binaries.py chromium-src/ pruning.list",
+      "domain_substitution": "python3 utils/domain_sub.py apply chromium-src/ domain_substitution.list",
+      "apply_nickel_patches": "python3 utils/patches.py apply chromium-src/ patches/nickel/",
+      "replace_resources": "python3 utils/replace_resources.py chromium-src/ src/nickel/branding/",
+      "gn_gen": "cd chromium-src && gn gen out/Nickel --args=\"$(cat ../src/nickel/build/args.gn)\"",
+      "compile": "ninja -C chromium-src/out/Nickel chrome",
+      "package_linux": "scripts/build-deb.sh chromium-src/out/Nickel/"
+    }
+  },
+
+  "repository_structure": {
+    "description": "Generate this EXACT directory and file tree. Every file listed must be created. Do not create dist/ or chromium-src/ (they are gitignored).",
+    "root_version_files": {
+      "chromium_version.txt": "Contains ONLY the pinned Chromium version string, e.g. 136.0.7103.92. Updated manually when upgrading Chromium base.",
+      "revision.txt": "Contains the ungoogled-chromium git revision hash corresponding to the Chromium version. Format: <uc_version>-1 e.g. 136.0.7103.92-1",
+      "downloads.ini": "INI-format file listing Chromium source archives and their SHA-512 checksums. Format inherited from ungoogled-chromium's downloads.ini schema.",
+      "deps.ini": "Third-party dependency versions and download URLs for build tools not in the Chromium tree.",
+      "pruning.list": "Newline-separated list of binary files to remove from Chromium source (inherited from ungoogled-chromium, extended by Nickel)",
+      "domain_substitution.list": "Regex-based domain substitution rules (inherited from ungoogled-chromium). Replaces google.com references in source."
+    },
+    "utils": {
+      "description": "Python build utility scripts — core of the source build pipeline. Modeled after ungoogled-chromium's utils/ directory.",
+      "downloads.py": "Fetches Chromium source archives defined in downloads.ini. Verifies SHA-512. Extracts to target directory. Handles resume on partial download.",
+      "patches.py": "Applies a quilt-style patch series to a target directory. Supports: apply, reverse, check (dry-run). Takes series file path and target directory as arguments.",
+      "prune_binaries.py": "Removes files listed in pruning.list from the Chromium source tree. These are proprietary Google binaries replaced with open-source alternatives.",
+      "domain_sub.py": "Applies regex domain substitutions from domain_substitution.list to all text files in the Chromium source. Replaces hardcoded Google domain references.",
+      "replace_resources.py": "Swaps Chromium branding assets (logos, icons, strings) with Nickel equivalents. Maps source paths in src/nickel/branding/ to target paths in Chromium source.",
+      "generate_ruleset.py": "Converts EasyList/EasyPrivacy .txt filter lists into Chromium's subresource_filter flatbuffer ruleset binary format. Required for source-level ad blocking.",
+      "update_patches.py": "Helper to refresh patches after a Chromium version bump. Runs git am on each patch and reports failures.",
+      "check_patches.py": "Dry-run patch validation — checks all patches in patches/nickel/series apply cleanly without actually modifying the tree.",
+      "build_info.py": "Generates build_info.json with: nickel_version, chromium_version, uc_revision, build_date_utc, build_host_os, git_commit_hash."
+    },
+    "patches": {
+      "description": "ALL patch files in unified diff format (-u). Applied in order defined in their respective series files.",
+      "ungoogled_chromium": {
+        "description": "DO NOT WRITE THESE. Fetch them directly from the ungoogled-chromium repository at the revision pinned in revision.txt. Store as a git submodule or copy into this directory.",
+        "source": "https://github.com/ungoogled-software/ungoogled-chromium/tree/master/patches",
+        "series": "Inherited from ungoogled-chromium — do not modify order"
+      },
+      "nickel": {
+        "series": "Ordered list of all Nickel patches. MUST list every patch filename in exact application order.",
+        "branding": {
+          "0001-product-name-nickel.patch": {
+            "description": "Replace all occurrences of 'Chromium' product name with 'Nickel Browser' in chrome/app/chromium_strings.grd and all .grd/.grdp files. Replace 'Google Chrome' with 'Nickel Browser'.",
+            "target_files": [
+              "chrome/app/chromium_strings.grd",
+              "chrome/app/generated_resources.grd",
+              "components/strings/components_chromium_strings.grd"
+            ],
+            "method": "sed-based string substitution via replace_resources.py, not a traditional code patch"
+          },
+          "0002-remove-google-branding.patch": {
+            "description": "Remove Google logo assets, Google icon references, and Google-specific UI elements from chrome/app/theme/ and related files.",
+            "target_files": [
+              "chrome/app/theme/",
+              "chrome/browser/ui/webui/welcome/"
+            ]
+          },
+          "0003-about-version-branding.patch": {
+            "description": "Patch chrome/browser/ui/webui/version_ui.cc to show Nickel Browser version info, acknowledgments, and remove Chromium/Google references from about:version page.",
+            "target_files": [
+              "chrome/browser/ui/webui/version_ui.cc",
+              "chrome/browser/ui/webui/version_ui.h"
+            ]
+          },
+          "0004-user-agent-string.patch": {
+            "description": "Set user agent to: Mozilla/5.0 ... Chrome/<chromium_version> NickelBrowser/<nickel_version>. Do NOT expose as Chromium or Chrome — use neutral UA that passes web compatibility while hiding fingerprint.",
+            "target_files": [
+              "components/embedder_support/user_agent_utils.cc"
+            ]
+          },
+          "0005-custom-ntp-registration.patch": {
+            "description": "Register Nickel's custom New Tab Page as the browser's NTP. Adds WebUI handler for chrome://newtab routing to nickel_ntp_ui.cc.",
+            "target_files": [
+              "chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc",
+              "chrome/browser/ui/webui/nickel_ntp_ui.cc (new file)",
+              "chrome/browser/ui/webui/nickel_ntp_ui.h (new file)",
+              "chrome/browser/ui/webui/BUILD.gn"
+            ]
+          }
+        },
+        "privacy": {
+          "0010-disable-webrtc-ip-leak.patch": {
+            "description": "Restrict WebRTC ICE candidate gathering to prevent real IP leakage when behind VPN/proxy. Force mDNS obfuscation for host candidates. Block reflexive candidates that expose public IP.",
+            "source_reference": "Port from ungoogled-chromium: 0001-webrtc-ice-candidate-restraints.patch — already exists, verify it is in UC patches before duplicating",
+            "target_files": [
+              "third_party/blink/renderer/modules/peerconnection/rtc_peer_connection.cc",
+              "chrome/browser/media/webrtc/"
+            ],
+            "settings_integration": "Add toggle to chrome://settings/privacy: 'WebRTC IP Handling Policy' with options: default, disable_non_proxied_udp, proxy_only"
+          },
+          "0011-canvas-fingerprint-noise.patch": {
+            "description": "Add per-session deterministic noise to canvas pixel readback APIs. Noise is seeded with a per-session random key (NOT per-call — breaks legitimate canvas use if per-call). getImageData(), toDataURL(), toBlob() all return slightly modified pixel values imperceptible to humans but breaking cross-session fingerprinting.",
+            "source_reference": "Port from Cromite: patches/cromite/canvas-image-data-noise.patch — study their exact implementation before writing",
+            "target_files": [
+              "third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc",
+              "third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc"
+            ],
+            "implementation_note": "Use RendererPreferences to pass session noise seed from browser process to renderer. Noise magnitude: ±1 per RGB channel maximum."
+          },
+          "0012-webgl-vendor-spoof.patch": {
+            "description": "Return generic GPU vendor/renderer strings from WebGL UNMASKED_VENDOR_WEBGL and UNMASKED_RENDERER_WEBGL extensions. Return 'Mesa' and 'Mesa Intel' regardless of actual hardware.",
+            "source_reference": "Port from Cromite: patches/cromite/webgl-vendor-renderer-override.patch",
+            "target_files": [
+              "third_party/blink/renderer/modules/webgl/webgl_debug_renderer_info.cc"
+            ],
+            "additional_hardening": "Consider completely removing WEBGL_debug_renderer_info extension as a Nickel-specific enhancement — no legitimate web app needs actual GPU vendor"
+          },
+          "0013-audiocontext-fingerprint-noise.patch": {
+            "description": "Add imperceptible noise to AudioContext getFloatFrequencyData() and getByteFrequencyData() outputs. Use same session noise seed as canvas patch for correlation resistance.",
+            "source_reference": "Port from Bromite: patches/Add-AudioBuffer-and-AnalyserNode-fp-mitigations.patch",
+            "target_files": [
+              "third_party/blink/renderer/modules/webaudio/analyser_node.cc",
+              "third_party/blink/renderer/modules/webaudio/audio_buffer.cc"
+            ]
+          },
+          "0014-hardware-api-restrictions.patch": {
+            "description": "Restrict hardware information APIs that are used for fingerprinting. Implementation: navigator.getBattery() returns a Promise that resolves to null. navigator.deviceMemory always returns 8 (fixed). navigator.hardwareConcurrency always returns 8 (fixed). navigator.connection returns undefined.",
+            "source_reference": "Port from Helium: patches/helium/privacy/hardware-api-restrictions.patch",
+            "target_files": [
+              "third_party/blink/renderer/core/frame/navigator.cc",
+              "third_party/blink/renderer/core/frame/navigator_device_memory.cc",
+              "third_party/blink/renderer/modules/battery/battery_manager.cc"
+            ]
+          },
+          "0015-font-enumeration-block.patch": {
+            "description": "Block the Local Font Access API (navigator.fonts) which exposes installed fonts for fingerprinting. Return empty iterator or throw NotAllowedError.",
+            "target_files": [
+              "third_party/blink/renderer/modules/font_access/"
+            ]
+          },
+          "0016-first-party-isolation.patch": {
+            "description": "Enable storage partitioning (First-Party Isolation / Total Cookie Protection equivalent). Partition cookies, localStorage, IndexedDB, Cache API, and service workers by top-level eTLD+1. This prevents cross-site tracking via shared storage.",
+            "target_files": [
+              "net/cookies/cookie_monster.cc",
+              "content/browser/storage_partition_impl.cc",
+              "chrome/browser/net/profile_network_context_service.cc"
+            ],
+            "note": "Chromium has partial support for storage partitioning built-in. Check what Privacy Sandbox has already implemented before patching to avoid duplication."
+          },
+          "0017-https-only-mode-default.patch": {
+            "description": "Set HTTPS-Only Mode to ENABLED by default (not just available). When HTTP URL is requested, attempt HTTPS upgrade first. Show interstitial if HTTPS unavailable (do NOT silently fall back to HTTP).",
+            "target_files": [
+              "chrome/browser/ssl/https_only_mode_controller_client.cc",
+              "chrome/browser/ssl/https_only_mode_upgrade_interceptor.cc",
+              "chrome/browser/prefs/browser_prefs.cc"
+            ],
+            "implementation": "Change default pref value of prefs::kHttpsOnlyModeEnabled from false to true in browser_prefs.cc"
+          },
+          "0018-doh-quad9-default.patch": {
+            "description": "Set DNS-over-HTTPS provider to Quad9 (https://dns.quad9.net/dns-query) by default. Enable DoH in Secure mode (not Automatic) so all DNS goes encrypted. Remove Google DNS and Cloudflare from default provider list or clearly label them.",
+            "target_files": [
+              "chrome/browser/net/dns_over_https_config_source.cc",
+              "chrome/browser/prefs/browser_prefs.cc",
+              "chrome/browser/ui/webui/settings/privacy_sandbox_handler.cc"
+            ]
+          },
+          "0019-block-google-internal-domains.patch": {
+            "description": "Block connections to Google internal telemetry domains at the network layer. These are NOT domains users navigate to — they are background telemetry pings that survive even ungoogled-chromium patches in edge cases.",
+            "domains_to_block": [
+              "update.googleapis.com",
+              "safebrowsing.googleapis.com",
+              "ssl.gstatic.com",
+              "www.gstatic.com",
+              "apis.google.com",
+              "clients1.google.com",
+              "clients2.google.com",
+              "clients3.google.com",
+              "clients4.google.com",
+              "clients5.google.com",
+              "clients6.google.com",
+              "play.googleapis.com",
+              "beacons.gvt2.com",
+              "safebrowsing.google.com"
+            ],
+            "note": "Most of these are already handled by ungoogled-chromium's domain substitution. Apply this patch AFTER UC patches and check for duplicates."
+          },
+          "0020-screen-resolution-normalize.patch": {
+            "description": "Normalize screen resolution and color depth values reported to JavaScript. Report standard resolutions instead of actual hardware values to prevent screen-based fingerprinting.",
+            "target_files": [
+              "third_party/blink/renderer/core/frame/screen.cc"
+            ],
+            "implementation": "Round screen.width and screen.height to nearest 100px. Fix screen.colorDepth at 24."
+          },
+          "0021-timezone-protection.patch": {
+            "description": "Protect timezone from being used as fingerprint vector. Allow user to optionally set a fixed timezone override. Default: no change (timezone is not spoofed by default as it breaks too many legitimate use cases, but provide the toggle).",
+            "target_files": [
+              "third_party/blink/renderer/core/frame/time_zone_monitor_browser.cc"
+            ],
+            "implementation": "Add chrome://settings/privacy toggle: 'Override timezone to UTC for privacy'"
+          }
+        },
+        "adblocking": {
+          "critical_architecture_note": "DO NOT use uBlock Origin as an extension. MV3 in Chromium has severely limited its effectiveness. Instead, use Chromium's BUILT-IN subresource_filter component which operates at the C++ network layer — completely invisible to JavaScript, undetectable by anti-adblock scripts, and cannot be disabled by web pages.",
+          "reference": "See chromium-src/components/subresource_filter/FILTER_LIST_GENERATION.md for the official filter list format documentation.",
+          "how_subresource_filter_works": "Chromium's subresource_filter is the same engine Google uses for Safe Browsing ad filtering. It intercepts URLRequests before they are dispatched at the network service layer. Filter rules are compiled into a flatbuffer binary format and loaded at browser startup. This is what Bromite and Cromite both use.",
+          "0030-enable-subresource-filter-always.patch": {
+            "description": "Enable Chromium's subresource_filter component unconditionally (not just when Safe Browsing is active). Normally it only activates for Safe Browsing-flagged pages. Patch removes this restriction so filtering applies globally.",
+            "source_reference": "Port from Bromite: patches/Add-new-permission-for-NFC.patch (find their subresource filter always-on patch)",
+            "target_files": [
+              "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.cc",
+              "components/subresource_filter/content/browser/subresource_filter_safe_browsing_activation_throttle.cc"
+            ],
+            "implementation": "Remove the Safe Browsing activation requirement. Set activation_state to ENABLED for all pages unconditionally."
+          },
+          "0031-load-nickel-filter-ruleset.patch": {
+            "description": "Load Nickel's compiled filter ruleset (nickel-filters.fb) at browser startup. The ruleset is embedded in the browser's resource pak file by inject-filter-lists.sh during build.",
+            "target_files": [
+              "components/subresource_filter/core/browser/ruleset_service.cc",
+              "components/subresource_filter/core/browser/ruleset_service.h",
+              "chrome/browser/browser_process_impl.cc"
+            ],
+            "implementation": "Add a new RulesetVersion entry for Nickel filters. Load from embedded resources first, then allow user profile directory override for runtime filter updates."
+          },
+          "0032-cosmetic-filter-engine.patch": {
+            "description": "Implement CSS cosmetic filtering (element hiding) to remove ad containers that survive network blocking. Inject CSS rules via content script mechanism after document DOM is constructed.",
+            "target_files": [
+              "chrome/renderer/chrome_content_renderer_client.cc",
+              "chrome/common/chrome_content_client.cc"
+            ],
+            "implementation": "Add a new content script injection point that loads cosmetic_filters.css from browser resources and injects it into every page's document. CSS rules come from EasyList cosmetic filter entries."
+          },
+          "0033-cname-uncloaking.patch": {
+            "description": "Detect and block CNAME-cloaked trackers. Many ad/tracking networks hide behind first-party CNAME entries. When a DNS response returns a CNAME pointing to a known tracker domain, block the request even though the hostname looked first-party.",
+            "source_reference": "Port from uBlock Origin's CNAME uncloaking approach, adapted for C++ network service layer",
+            "target_files": [
+              "services/network/network_service.cc",
+              "net/dns/host_resolver.cc"
+            ]
+          },
+          "0034-anti-adblock-detection-evasion.patch": {
+            "description": "Prevent websites from detecting that ad blocking is active. Technique: return fake ad element placeholders (1x1 transparent images) for blocked ad requests instead of network errors. This makes navigator.onLine and ad detection scripts believe ads loaded successfully.",
+            "target_files": [
+              "components/subresource_filter/content/renderer/",
+              "net/url_request/url_request_job.cc"
+            ]
+          },
+          "0035-youtube-ad-blocking.patch": {
+            "description": "Specific patch for YouTube ad blocking beyond what EasyList covers. Block ytInitialPlayerResponse ad insertion points and prebaked ad payloads. Reference Cromite's YouTube-specific patches.",
+            "source_reference": "Port from Cromite: look for YouTube-specific filter/blocking patches in their patch series",
+            "target_files": [
+              "components/subresource_filter/",
+              "content/renderer/render_frame_impl.cc"
+            ]
+          },
+          "0036-sponsorblock-integration.patch": {
+            "description": "Integrate SponsorBlock segment skipping for YouTube. Query the SponsorBlock API (https://sponsor.ajay.app) for the current video ID and skip sponsor/intro/outro segments automatically. Make this opt-in with a chrome://settings toggle since it requires an external API call.",
+            "target_files": [
+              "chrome/browser/ui/webui/nickel_settings/",
+              "content/renderer/render_frame_impl.cc"
+            ],
+            "privacy_note": "SponsorBlock API calls expose which YouTube videos are being watched. Must be clearly disclosed and default OFF. User must explicitly enable it."
+          }
+        },
+        "features": {
+          "note": "Each feature patch must be self-contained. If a feature requires both browser process (C++) and renderer process changes, split into browser-side and renderer-side patches.",
+          "0040-vertical-tabs-sidebar.patch": {
+            "description": "Add a vertical tab strip sidebar panel to the browser window. Tabs appear as a collapsible list on the left side. Default ON. Includes: tab thumbnails, tab groups, drag-to-reorder, collapse/expand.",
+            "source_reference": "Study Microsoft Edge's vertical tabs implementation approach. Also reference Helium's sidebar implementation.",
+            "target_files": [
+              "chrome/browser/ui/views/frame/browser_view.cc",
+              "chrome/browser/ui/views/tabs/",
+              "chrome/browser/ui/views/side_panel/"
+            ]
+          },
+          "0041-workspaces.patch": {
+            "description": "Implement named browser workspaces (separate tab sets with independent cookie jars, optionally). User can switch between Work, Personal, Shopping workspaces. Each workspace is a separate BrowserContext.",
+            "target_files": [
+              "chrome/browser/profiles/",
+              "chrome/browser/ui/browser_commands.cc",
+              "chrome/browser/ui/views/toolbar/"
+            ]
+          },
+          "0042-split-view.patch": {
+            "description": "Enable side-by-side tab viewing. Two tabs displayed simultaneously in a split pane. Splitter is user-draggable. Toggle via toolbar button or keyboard shortcut (Ctrl+Shift+\\).",
+            "target_files": [
+              "chrome/browser/ui/views/frame/browser_view.cc",
+              "chrome/browser/ui/views/frame/contents_web_view.cc"
+            ]
+          },
+          "0043-container-tabs.patch": {
+            "description": "Firefox Multi-Account Containers equivalent. Each container has isolated cookies, localStorage, and cache. Containers are color-coded and named by user (Personal, Work, Banking, Shopping). Sites can be auto-assigned to containers.",
+            "target_files": [
+              "chrome/browser/profiles/profile_manager.cc",
+              "chrome/browser/ui/tabs/tab_strip_model.cc"
+            ]
+          },
+          "0044-tab-sleep.patch": {
+            "description": "Auto-suspend tabs that have been inactive for a configurable period (default: 30 minutes). Suspended tabs release renderer memory. Tab title prefixed with [Sleeping]. Reactivated when user clicks the tab.",
+            "target_files": [
+              "chrome/browser/ui/tabs/tab_strip_model.cc",
+              "content/browser/web_contents/web_contents_impl.cc"
+            ]
+          },
+          "0045-session-manager.patch": {
+            "description": "Named session save/restore. User can save all open windows and tabs as a named session. Sessions persist across browser restarts. Accessible from menu: Sessions > Save Current / Restore Saved.",
+            "target_files": [
+              "chrome/browser/sessions/",
+              "chrome/browser/ui/browser_commands.cc"
+            ]
+          },
+          "0046-ipfs-protocol-handler.patch": {
+            "description": "Add native ipfs:// URL scheme handler. Route IPFS requests through a configurable gateway (default: https://ipfs.io/ipfs/). Allow user to set custom gateway or run local IPFS daemon.",
+            "target_files": [
+              "chrome/browser/custom_handlers/",
+              "components/url_formatter/",
+              "net/url_request/"
+            ]
+          },
+          "0047-mouse-gestures.patch": {
+            "description": "Right-click hold + directional mouse gesture navigation. Gestures: Right=Forward, Left=Back, Up=New Tab, Down=Close Tab, Up-Right=Scroll Top, Down-Right=Scroll Bottom.",
+            "target_files": [
+              "chrome/browser/ui/views/frame/browser_root_view.cc",
+              "content/browser/renderer_host/render_widget_host_view_base.cc"
+            ]
+          },
+          "0048-pip-global-button.patch": {
+            "description": "Add a permanent Picture-in-Picture button overlay on any HTML5 video element on hover. Not just YouTube — works on any video. Clicking the button extracts video to floating PiP window.",
+            "target_files": [
+              "chrome/browser/ui/views/overlay/",
+              "content/renderer/media/video/"
+            ]
+          },
+          "0049-download-manager-aria2.patch": {
+            "description": "Replace Chromium's single-threaded downloader with aria2c-based multi-threaded download manager. If aria2c is installed, route all downloads through it. Show download progress, speed, and ETA in a proper download manager panel.",
+            "target_files": [
+              "chrome/browser/download/",
+              "chrome/browser/ui/views/download/"
+            ],
+            "fallback": "If aria2c not found, fall back to Chromium's built-in downloader with a notification to install aria2c"
+          },
+          "0050-json-xml-viewer.patch": {
+            "description": "Auto-detect and pretty-print JSON and XML responses in browser tab (not just DevTools). When Content-Type is application/json or application/xml, render as collapsible tree with syntax highlighting instead of raw text.",
+            "target_files": [
+              "chrome/browser/ui/webui/",
+              "components/web_resource/"
+            ]
+          },
+          "0051-qr-code-generator.patch": {
+            "description": "Add QR code generation to the right-click context menu ('Generate QR Code for this URL') and to the address bar as an icon button. Use a pure C++ QR library (no external service).",
+            "target_files": [
+              "chrome/browser/ui/views/location_bar/",
+              "chrome/browser/ui/qrcode_generator/"
+            ]
+          },
+          "0052-notes-sidebar.patch": {
+            "description": "Per-page sticky notes panel in the side panel. Notes are associated with the page URL and persist in user profile. Accessible via side panel icon or Ctrl+Shift+N.",
+            "target_files": [
+              "chrome/browser/ui/views/side_panel/",
+              "chrome/browser/notes/"
+            ]
+          },
+          "0053-keyboard-shortcut-remapper.patch": {
+            "description": "Allow users to customize any browser keyboard shortcut from a dedicated page (chrome://settings/keyboard-shortcuts or accessible from Settings > Keyboard). Store custom mappings in user profile.",
+            "target_files": [
+              "chrome/browser/ui/views/accelerator_table.cc",
+              "chrome/browser/prefs/browser_prefs.cc"
+            ]
+          },
+          "0054-exif-scrubber.patch": {
+            "description": "Strip EXIF/XMP/IPTC metadata from JPEG, PNG, TIFF, and WEBP images when downloading or saving. Show notification: 'Metadata stripped from [filename]'. Toggle in Settings > Privacy: 'Strip metadata from downloaded images'.",
+            "target_files": [
+              "chrome/browser/download/download_item_model.cc",
+              "third_party/libjpeg_turbo/",
+              "third_party/libpng/"
+            ]
+          },
+          "0055-local-password-vault.patch": {
+            "description": "Replace Chromium's Google-synced password manager with a local-only KeePass-compatible encrypted vault. Encryption: AES-256-GCM with PBKDF2 key derivation. Support import from KeePass .kdbx files and from Chromium's existing password export CSV.",
+            "target_files": [
+              "chrome/browser/password_manager/",
+              "components/password_manager/core/browser/"
+            ]
+          },
+          "0056-tor-private-tab.patch": {
+            "description": "Add Tor-routed private browsing mode. When user opens a Tor Private Tab (Ctrl+Shift+T), all requests for that tab are routed through a bundled Tor client (tor binary shipped with Nickel). Regular private tabs are unchanged. Tor tabs show onion icon in address bar.",
+            "tor_binary_note": "Bundle the official Tor binary from https://www.torproject.org as a resource. License: BSD-3-Clause compatible.",
+            "target_files": [
+              "chrome/browser/tor/",
+              "net/proxy_resolution/",
+              "chrome/browser/ui/tabs/tab_strip_model.cc"
+            ]
+          },
+          "0057-vpn-client-wireguard.patch": {
+            "description": "Built-in WireGuard VPN client. User can configure WireGuard server details from Settings > VPN. When active, all browser traffic routes through the VPN tunnel. Show VPN status in toolbar. Default: disconnected (user must configure).",
+            "target_files": [
+              "chrome/browser/vpn/",
+              "net/socket/",
+              "chrome/browser/ui/views/toolbar/"
+            ],
+            "note": "WireGuard userspace library (wireguard-go or boringssl-based) must be bundled. This is a COMPLEX feature — mark as v1.1 if not completing in v1.0."
+          }
+        },
+        "network": {
+          "0060-block-doubleclick-domains.patch": {
+            "description": "Add *.doubleclick.net, *.googleadservices.com, and *.googlesyndication.com to a compile-time blocked domains list. Requests to these domains return BLOCKED status before reaching network stack.",
+            "target_files": [
+              "net/base/url_util.cc",
+              "chrome/browser/net/chrome_network_delegate.cc"
+            ]
+          },
+          "0061-referrer-policy-strict.patch": {
+            "description": "Override default Referrer-Policy to 'strict-origin-when-cross-origin' (instead of no-referrer-when-downgrade). For privacy-sensitive contexts, use 'no-referrer'. Add toggle in Settings > Privacy.",
+            "target_files": [
+              "net/url_request/url_request.cc",
+              "third_party/blink/renderer/core/loader/frame_fetch_context.cc"
+            ]
+          }
+        }
+      }
+    },
+
+    "src": {
+      "nickel": {
+        "branding": {
+          "Nickel.png": "Primary logo 512x512 PNG — already exists",
+          "Nickel.svg": "SVG vector source of logo",
+          "Nickel.ico": "Windows multi-resolution ICO: 16,32,48,64,128,256px",
+          "Nickel.icns": "macOS ICNS multi-resolution icon bundle",
+          "product_logo_16.png": "16x16 PNG for Chromium product logo override",
+          "product_logo_32.png": "32x32 PNG",
+          "product_logo_48.png": "48x48 PNG",
+          "product_logo_64.png": "64x64 PNG",
+          "product_logo_128.png": "128x128 PNG",
+          "product_logo_256.png": "256x256 PNG",
+          "product_logo_512.png": "512x512 PNG",
+          "colors.json": {
+            "primary": "#C0C0C0",
+            "primary_name": "Nickel Silver",
+            "accent": "#4A4A4A",
+            "background_dark": "#1A1A1A",
+            "background_medium": "#2A2A2A",
+            "text_primary": "#E0E0E0",
+            "text_secondary": "#A0A0A0",
+            "success": "#4CAF50",
+            "warning": "#FF9800",
+            "error": "#F44336",
+            "tor_accent": "#9932CC",
+            "vpn_accent": "#5865F2"
+          },
+          "resource_map.json": "Maps Chromium source asset paths to Nickel replacement paths. Used by utils/replace_resources.py.",
+          "strings_override.grd": "GRD format overrides for all user-visible strings replacing Chromium/Google branding with Nickel branding"
+        },
+        "build": {
+          "args.gn": {
+            "description": "Complete GN build arguments for Nickel Browser source build. CRITICAL: Every argument name MUST be verified against the current Chromium GN reference using Context7 MCP before writing. Wrong argument names cause silent build failures.",
+            "telemetry_disabling": {
+              "enable_reporting": false,
+              "safe_browsing_mode": 0,
+              "enable_background_mode": false,
+              "disable_fieldtrial_testing_config": true
+            },
+            "google_apis_disabling": {
+              "google_api_key": "\"\"",
+              "google_default_client_id": "\"\"",
+              "google_default_client_secret": "\"\"",
+              "use_official_google_api_keys": false
+            },
+            "google_services_disabling": {
+              "enable_hangout_services_extension": false,
+              "enable_google_now": false,
+              "enable_remoting": false,
+              "enable_service_discovery": false,
+              "safe_browsing_use_unversioned_directory": false
+            },
+            "nickel_specific": {
+              "enable_subresource_filter": true,
+              "enable_subresource_filter_debugging": false
+            },
+            "branding": {
+              "chrome_version_string": "\"Nickel Browser\"",
+              "chrome_product_short_name": "\"Nickel\""
+            },
+            "build_optimization": {
+              "is_official_build": true,
+              "is_debug": false,
+              "symbol_level": 0,
+              "blink_symbol_level": 0,
+              "enable_nacl": false,
+              "use_thin_lto": true,
+              "enable_linux_installer": false
+            },
+            "codec_openness": {
+              "proprietary_codecs": false,
+              "ffmpeg_branding": "\"Chromium\""
+            },
+            "feature_flags": {
+              "enable_pdf": true,
+              "enable_plugins": false,
+              "enable_widevine": false
+            },
+            "toolchain": {
+              "is_clang": true,
+              "clang_use_chrome_plugins": false,
+              "use_lld": true
+            }
+          },
+          "BUILD.gn": "Nickel-specific GN build targets: nickel_ntp, nickel_settings, nickel_password_vault, nickel_tor_integration"
+        },
+        "filter_lists": {
+          "note": "These are the raw .txt filter lists committed to repo. utils/generate_ruleset.py compiles them into the binary flatbuffer format during build.",
+          "easylist.txt": "Standard EasyList — fetched by scripts/update-filter-lists.sh",
+          "easyprivacy.txt": "EasyPrivacy tracking protection",
+          "ublock-filters.txt": "uBlock Origin built-in filter list (the FILTERS not the extension)",
+          "ublock-badware.txt": "uBlock Origin malware domain list",
+          "annoyances.txt": "Cookie banners, newsletter popups, GDPR notices",
+          "youtube-ads.txt": "YouTube-specific filter rules",
+          "spotify-ads.txt": "Spotify audio ad blocking rules",
+          "cname-trackers.txt": "CNAME-cloaked tracker domains",
+          "nickel-custom.txt": "Nickel's own curated filter rules — community-maintained",
+          "cosmetic-filters.css": "Compiled CSS for element hiding rules (generated from filter lists' cosmetic entries)",
+          "regional/": "Region-specific filter lists (fanboy-annoyance, etc.)"
+        },
+        "ntp": {
+          "description": "Custom New Tab Page — delivered as a Chromium WebUI page (chrome://newtab). Pure HTML/CSS/JS, zero external requests, all assets bundled, <50KB total.",
+          "index.html": "NTP entry point — registered as a WebUI resource",
+          "ntp.css": "Styles using Nickel brand colors from colors.json. Dark theme default.",
+          "ntp.js": "NTP logic: clock (12/24h configurable), search bar (DuckDuckGo default), quick links grid, privacy stats counter (ads blocked, trackers blocked since install)",
+          "icons/": "SVG icons for NTP (search, settings, clock) — no external icon font CDN",
+          "nickel_ntp_ui.cc": "C++ WebUI controller registering the NTP with Chromium's WebUI factory",
+          "nickel_ntp_ui.h": "Header for NTP WebUI controller",
+          "nickel_ntp.pak": "Compiled pak resource bundle for NTP assets — generated during build"
+        },
+        "ui": {
+          "nickel_dark_theme.json": "Default dark theme definition",
+          "nickel_light_theme.json": "Light theme variant",
+          "toolbar_icons/": "SVG replacements for Chromium's default toolbar icons"
+        }
+      }
+    },
+
+    "scripts": {
+      "common.sh": "Shared library: log functions, require_command(), detect_platform(), get_chromium_version(), get_nickel_version(), make_temp_dir(), check_disk_space(required_gb), check_ram(required_gb)",
+      "setup-build-env.sh": {
+        "description": "One-time setup script: installs all build dependencies on the host system",
+        "linux_dependencies": [
+          "python3 python3-pip",
+          "clang lld lldb",
+          "ninja-build",
+          "nodejs npm",
+          "git curl wget",
+          "pkg-config",
+          "libgtk-3-dev libglib2.0-dev libdbus-1-dev",
+          "libnss3-dev libnspr4-dev",
+          "libcups2-dev libxss-dev libasound2-dev",
+          "dpkg-dev debhelper",
+          "appimagetool (from AppImage GitHub releases)",
+          "quilt (for patch management)",
+          "shellcheck markdownlint-cli (for CI validation)"
+        ]
+      },
+      "fetch-chromium-source.sh": {
+        "description": "Downloads Chromium source code. Uses utils/downloads.py. This is a ~35GB download. Script is resumable.",
+        "usage": "./scripts/fetch-chromium-source.sh [--output-dir chromium-src]",
+        "key_logic": [
+          "Read version from chromium_version.txt",
+          "Call python3 utils/downloads.py fetch downloads.ini $OUTPUT_DIR",
+          "Verify checksums after download",
+          "Print exact UC revision being used",
+          "Warn if disk space < 250GB before starting"
+        ]
+      },
+      "prepare-source.sh": {
+        "description": "Applies all patches and transformations to the Chromium source tree. Must be run after fetch-chromium-source.sh.",
+        "stages": [
+          "Stage 1: Apply ungoogled-chromium patch series (python3 utils/patches.py apply chromium-src/ patches/ungoogled-chromium/)",
+          "Stage 2: Prune proprietary binaries (python3 utils/prune_binaries.py chromium-src/ pruning.list)",
+          "Stage 3: Domain substitution (python3 utils/domain_sub.py apply chromium-src/ domain_substitution.list)",
+          "Stage 4: Apply Nickel patch series (python3 utils/patches.py apply chromium-src/ patches/nickel/)",
+          "Stage 5: Replace branding resources (python3 utils/replace_resources.py chromium-src/ src/nickel/branding/)",
+          "Stage 6: Compile filter lists to ruleset (python3 utils/generate_ruleset.py src/nickel/filter_lists/ chromium-src/components/subresource_filter/core/common/rulesets/)",
+          "Stage 7: Generate build_info.json (python3 utils/build_info.py)"
+        ]
+      },
+      "configure-build.sh": {
+        "description": "Runs GN configuration to generate build system files",
+        "logic": [
+          "cd chromium-src",
+          "Detect platform and set target_os and target_cpu in args",
+          "Run: gn gen out/Nickel --args=\"$(cat ../src/nickel/build/args.gn | envsubst)\"",
+          "Verify GN generated without errors",
+          "Log: 'Build configured. Run scripts/compile.sh to start compilation.'"
+        ]
+      },
+      "compile.sh": {
+        "description": "Runs ninja compilation. This is the long step (4-8 hours first run).",
+        "logic": [
+          "Detect CPU core count: JOBS=$(nproc)",
+          "Run: ninja -C chromium-src/out/Nickel chrome -j$JOBS",
+          "On completion: print binary size and location",
+          "On failure: print last 100 lines of build log and exit 1",
+          "Incremental builds (after first run) take 10-30 minutes"
+        ],
+        "time_expectations": {
+          "first_build_8_cores_hours": "4-8",
+          "incremental_build_minutes": "10-30",
+          "note": "Warn user before starting: 'Full build will take 4-8 hours. Keep terminal open.'"
+        }
+      },
+      "build-nickel.sh": {
+        "description": "Master build orchestrator — runs all steps in order",
+        "steps": [
+          "Check system requirements (disk, RAM, CPU, tools)",
+          "fetch-chromium-source.sh (skip if chromium-src/ exists and version matches)",
+          "prepare-source.sh",
+          "configure-build.sh",
+          "compile.sh",
+          "Package for current platform"
+        ]
+      },
+      "build-deb.sh": "Creates .deb package from compiled output in chromium-src/out/Nickel/",
+      "build-appimage.sh": "Creates AppImage from compiled output",
+      "build-dmg.sh": "Creates macOS .dmg disk image",
+      "build-windows-installer.sh": "Creates Windows NSIS installer",
+      "generate-checksums.sh": "SHA-256 checksums for all dist/ artifacts",
+      "update-filter-lists.sh": "Fetches fresh filter lists from upstream sources — run by CI nightly",
+      "verify-checksum.sh": "Verifies SHA-256 of downloaded files",
+      "check-patches.sh": "Dry-run validation of all patches in patches/nickel/ series"
+    },
+
+    "github_workflows": {
+      "self_hosted_runner_note": "ALL compilation jobs MUST run on self-hosted runners. GitHub-hosted runners have max 14GB disk and 7GB RAM. Chromium source build requires 250GB disk and 16GB RAM minimum. Set up a self-hosted runner on a machine meeting system_requirements.minimum specs.",
+      "nickel-production-build.yml": {
+        "triggers": ["push to main", "workflow_dispatch", "release published"],
+        "jobs": {
+          "build-linux": {
+            "runs_on": "self-hosted",
+            "runner_label": "nickel-linux-builder",
+            "steps": [
+              "actions/checkout@v4 with submodules",
+              "Cache chromium-src/ by chromium_version.txt hash (saves re-downloading 35GB)",
+              "Run scripts/setup-build-env.sh if tools missing",
+              "Run scripts/fetch-chromium-source.sh (uses cache if available)",
+              "Run scripts/prepare-source.sh",
+              "Run scripts/configure-build.sh",
+              "Run scripts/compile.sh",
+              "Run scripts/build-deb.sh",
+              "Run scripts/build-appimage.sh",
+              "Run scripts/generate-checksums.sh",
+              "Upload artifacts: actions/upload-artifact@v4"
+            ]
+          },
+          "build-macos": {
+            "runs_on": "self-hosted",
+            "runner_label": "nickel-macos-builder",
+            "steps": ["same as linux but calls build-dmg.sh"]
+          },
+          "build-windows": {
+            "runs_on": "self-hosted",
+            "runner_label": "nickel-windows-builder",
+            "steps": ["same as linux but calls build-windows-installer.sh"]
+          },
+          "publish-release": {
+            "needs": ["build-linux", "build-macos", "build-windows"],
+            "condition": "github.event_name == 'release'",
+            "steps": [
+              "Download all artifacts",
+              "Upload to GitHub Release using softprops/action-gh-release@v2"
+            ]
+          }
+        }
+      },
+      "nickel-pr-check.yml": {
+        "triggers": ["pull_request to main"],
+        "runs_on": "ubuntu-22.04",
+        "note": "PR checks do NOT compile — they only validate code quality and patch syntax",
+        "steps": [
+          "shellcheck all scripts/*.sh",
+          "markdownlint all *.md and docs/**/*.md",
+          "python3 utils/check_patches.py (dry-run patch validation)",
+          "yamllint .github/workflows/*.yml",
+          "Check chromium_version.txt and revision.txt are in sync",
+          "Validate GN args format",
+          "Verify filter list files are non-empty and have valid headers",
+          "Check no secrets with trufflehog or gitleaks"
+        ],
+        "time_limit_minutes": 10
+      },
+      "nickel-security-audit.yml": {
+        "triggers": ["schedule: every Monday 09:00 UTC", "push to main"],
+        "runs_on": "ubuntu-22.04",
+        "steps": [
+          "ossf/scorecard-action@v2",
+          "Upload SARIF to GitHub Security tab",
+          "trivy filesystem scan",
+          "Check filter lists staleness (warn if >7 days old)",
+          "Dependency review for any new tool additions"
+        ]
+      },
+      "nickel-filter-update.yml": {
+        "triggers": ["schedule: daily 02:00 UTC", "workflow_dispatch"],
+        "runs_on": "ubuntu-22.04",
+        "steps": [
+          "Checkout with write permissions",
+          "Run scripts/update-filter-lists.sh",
+          "If lists changed: commit with message 'chore(filters): nightly filter list update YYYY-MM-DD'",
+          "Create PR with filter update stats (rules added/removed per list)"
+        ]
+      },
+      "nickel-patch-compat-check.yml": {
+        "triggers": ["push to main when chromium_version.txt changes"],
+        "runs_on": "self-hosted",
+        "purpose": "When Chromium version is bumped, automatically test if all patches still apply cleanly",
+        "steps": [
+          "Fetch new Chromium source",
+          "Apply UC patches",
+          "Attempt to apply each Nickel patch",
+          "Report which patches failed and need refresh",
+          "Create issue listing patches needing update"
+        ]
+      }
+    },
+
+    "docs": {
+      "BUILD.md": {
+        "required_sections": [
+          "System Requirements (with exact disk/RAM/CPU numbers)",
+          "Quick Start (5 commands from zero to running browser)",
+          "Detailed Platform Guides: Linux, macOS, Windows",
+          "Understanding the Build Pipeline (diagram)",
+          "First Build vs Incremental Builds (time expectations)",
+          "GN Configuration Explained",
+          "Adding Your Own Patches",
+          "Cross-Compilation Notes",
+          "Troubleshooting Top 15 Errors",
+          "Reproducible Builds Guide"
+        ]
+      },
+      "PATCHES.md": {
+        "required_sections": [
+          "Patch Philosophy",
+          "Patch Naming Convention and Numbering",
+          "How Patches Are Applied (pipeline diagram)",
+          "Writing a New Privacy Patch",
+          "Writing a New Feature Patch",
+          "Testing Your Patch",
+          "Refreshing Patches After Chromium Upgrade",
+          "Patch Review Criteria",
+          "Upstream Sources: Cromite, Bromite, Helium, ungoogled-chromium"
+        ]
+      },
+      "ARCHITECTURE.md": {
+        "required_sections": [
+          "High-Level Architecture Diagram (ASCII art)",
+          "Source Build Pipeline (step-by-step with file paths)",
+          "Ad Blocking Architecture (subresource_filter deep dive)",
+          "Privacy Layer Stack (which layer handles which attack vector)",
+          "Patch Application Order and Dependencies",
+          "WebUI Pages (NTP, Settings extensions)",
+          "Build Output Structure",
+          "CI/CD Pipeline Diagram"
+        ]
+      },
+      "SECURITY.md": "Full security policy: threat model, vulnerability disclosure, 90-day deadline, contact info",
+      "PRIVACY_POLICY.md": "Privacy policy with Wireshark verification guide and network audit table",
+      "CONTRIBUTING.md": "Full contributor guide: setup, code style, commit format, patch submission, review process, DCO",
+      "SELF_HOSTED_RUNNER_SETUP.md": {
+        "description": "Step-by-step guide for setting up a self-hosted GitHub Actions runner that meets build requirements",
+        "required_sections": [
+          "Hardware Requirements",
+          "OS Setup (Ubuntu 22.04 recommended)",
+          "Installing Build Dependencies",
+          "Configuring GitHub Actions Runner",
+          "Security Hardening the Runner",
+          "Disk Space Management (build caches can fill 250GB fast)",
+          "Monitoring Build Health"
+        ]
+      }
+    },
+
+    "tests": {
+      "smoke": {
+        "launch_test.sh": "Launch chromium-src/out/Nickel/chrome, wait 5s, verify process running, verify window title is 'Nickel Browser'",
+        "ntp_test.sh": "Open new tab, Playwright screenshot, verify: Nickel logo visible, search bar visible, privacy counter visible, clock visible",
+        "branding_test.sh": "Navigate to chrome://version, assert contains 'Nickel Browser', assert does NOT contain 'Google', assert does NOT contain 'Chromium' in product name fields"
+      },
+      "privacy": {
+        "telemetry_audit.sh": "tcpdump capture during 60s browser idle session. Parse pcap. Assert ZERO connections to: *.google.com, *.gstatic.com, *.googleapis.com, *.chromium.org, *.doubleclick.net, *.googlesyndication.com",
+        "webrtc_leak_test.sh": "Playwright: load browserleaks.com/webrtc behind proxy, assert no real IP in ICE candidates",
+        "canvas_noise_test.sh": "Run canvas fingerprint test twice in same session — assert same result (deterministic). Run in two sessions — assert different results (session-keyed).",
+        "webgl_spoof_test.sh": "Navigate to browserleaks.com/webgl, assert UNMASKED_VENDOR is generic string, not actual GPU vendor",
+        "dns_leak_test.sh": "tcpdump on UDP port 53 during browsing session. Assert ZERO plaintext DNS queries (all DNS must go through DoH)"
+      },
+      "adblocking": {
+        "easylist_block_test.sh": "Load 20 known ad-serving test URLs, assert each returns blocked response",
+        "benchmark_test.sh": "Playwright: navigate to d3ward.github.io/toolz/adblock, wait for completion, assert score >= 95%",
+        "detection_evasion_test.sh": "Playwright: navigate to sites known for anti-adblock scripts, assert no anti-adblock interstitials appear",
+        "youtube_ad_test.sh": "Playwright: navigate to YouTube video, assert video preroll ad is blocked, assert video plays without ad interstitial"
+      },
+      "playwright": {
+        "framework": "Playwright Test (TypeScript, @playwright/test)",
+        "browser_launch.spec.ts": "Full launch → NTP load → navigate to 3 sites → verify history → verify back/forward",
+        "vertical_tabs.spec.ts": "Open 5 tabs → assert all in sidebar → drag reorder → assert new order → collapse sidebar → assert hidden → expand → assert visible",
+        "workspaces.spec.ts": "Create Work workspace → navigate to example.com → switch to Personal workspace → assert different tab set → switch back → assert Work tabs still there",
+        "adblock.spec.ts": "Navigate to adblock benchmark → assert >=95% score → navigate to YouTube → assert no ad plays",
+        "privacy_defaults.spec.ts": "Open chrome://settings → navigate to Privacy → assert HTTPS-Only mode ON → assert DoH ON pointing to Quad9 → assert WebRTC restriction ON",
+        "container_tabs.spec.ts": "Create Work container → open tab in Work container → set cookie → open same URL in default tab → assert cookie NOT shared",
+        "ntp_no_external.spec.ts": "Open new tab → intercept all network requests → assert ZERO requests to external domains"
+      }
+    },
+
+    ".gitignore_entries": [
+      "chromium-src/",
+      "dist/",
+      "*.deb",
+      "*.AppImage",
+      "*.dmg",
+      "*.exe",
+      "*.tar.xz",
+      "*.tar.gz",
+      "*.zip",
+      "node_modules/",
+      "__pycache__/",
+      "*.pyc",
+      "*.pyo",
+      ".env",
+      "*.log",
+      "build_info.json",
+      ".ninja_deps",
+      ".ninja_log",
+      "out/"
+    ]
+  },
+
+  "phases": {
+
+    "phase_0": {
+      "name": "Study Reference Implementations",
+      "description": "Before writing any code, study how real Chromium-based browsers implement what Nickel needs. This phase prevents reinventing the wheel and ensures patches are grounded in proven approaches.",
+      "mcp_servers_used": ["firecrawl", "duckduckgo-search", "sequential-thinking", "context7"],
+      "tasks": [
+        {
+          "id": "0.1",
+          "action": "study_repo",
+          "target": "https://github.com/ungoogled-software/ungoogled-chromium",
+          "focus": [
+            "Read utils/downloads.py — understand how source is fetched",
+            "Read utils/patches.py — understand how patches are applied",
+            "Read patches/series — understand patch ordering",
+            "Read buildkit/ or build.py — understand build orchestration",
+            "Note exact Chromium version they are currently tracking"
+          ],
+          "output": "Document in docs/ARCHITECTURE.md: 'UC Build Pipeline' section"
+        },
+        {
+          "id": "0.2",
+          "action": "study_repo",
+          "target": "https://github.com/imputnet/helium",
+          "focus": [
+            "Read replace_resources.py — resource replacement approach",
+            "Read patches/helium/ series — what features they patch",
+            "Read their CI workflows — how they handle source builds in CI",
+            "Identify any patches relevant to Nickel features"
+          ]
+        },
+        {
+          "id": "0.3",
+          "action": "study_repo",
+          "target": "https://github.com/uazo/cromite",
+          "focus": [
+            "Read build/patches/ — fingerprinting protection patches",
+            "Find canvas noise patch — port to Nickel",
+            "Find WebGL spoof patch — port to Nickel",
+            "Find AudioContext noise patch — port to Nickel",
+            "Read components/subresource_filter/ patches — ad blocking approach"
+          ]
+        },
+        {
+          "id": "0.4",
+          "action": "read_chromium_doc",
+          "target": "chromium-src/components/subresource_filter/FILTER_LIST_GENERATION.md",
+          "note": "This file exists inside the Chromium source tree. Must fetch Chromium source first or find it on Chromium Code Search (cs.chromium.org)",
+          "purpose": "Understand the exact flatbuffer format required for ad blocking filter lists"
+        },
+        {
+          "id": "0.5",
+          "action": "pin_versions",
+          "tasks": [
+            "Determine latest stable ungoogled-chromium release version",
+            "Write that version to chromium_version.txt",
+            "Write corresponding UC revision to revision.txt",
+            "Update downloads.ini with correct source URLs and SHA-512 checksums for that version"
+          ]
+        }
+      ],
+      "verification_gate": "chromium_version.txt, revision.txt, and downloads.ini all exist and are internally consistent. Running python3 utils/downloads.py fetch --dry-run downloads.ini must succeed."
+    },
+
+    "phase_1": {
+      "name": "Repository Initialization",
+      "description": "Create the complete repository structure and GitHub configuration.",
+      "mcp_servers_used": ["github", "filesystem"],
+      "tasks": [
+        {
+          "id": "1.1",
+          "action": "create_full_directory_tree",
+          "description": "Create every directory and file listed in repository_structure. Use .gitkeep for empty directories.",
+          "tool": "filesystem"
+        },
+        {
+          "id": "1.2",
+          "action": "write_root_files",
+          "files": [".gitignore", ".gitattributes", "LICENSE", "chromium_version.txt", "revision.txt", "domain_substitution.list", "pruning.list", "downloads.ini", "deps.ini"]
+        },
+        {
+          "id": "1.3",
+          "action": "configure_github",
+          "tool": "github",
+          "settings": {
+            "description": "🪙 Nickel Browser — Privacy-First Browser. Block Everything. Leak Nothing. Own Your Web. Built on ungoogled-chromium.",
+            "topics": ["browser", "privacy", "chromium", "ungoogled-chromium", "ad-blocking", "open-source", "security", "fingerprinting-protection", "source-build"],
+            "has_discussions": true,
+            "vulnerability_alerts": true,
+            "delete_branch_on_merge": true
+          },
+          "branch_protection": {
+            "branch": "main",
+            "required_checks": ["nickel-pr-check"],
+            "require_pr_review": true,
+            "dismiss_stale_reviews": true
+          },
+          "labels": [
+            {"name": "bug", "color": "d73a4a"},
+            {"name": "feature", "color": "0075ca"},
+            {"name": "privacy", "color": "7b61ff"},
+            {"name": "security", "color": "e4e669"},
+            {"name": "patch", "color": "f9d0c4"},
+            {"name": "adblocking", "color": "FF0000"},
+            {"name": "good first issue", "color": "7057ff"},
+            {"name": "help wanted", "color": "008672"},
+            {"name": "platform:linux", "color": "0052cc"},
+            {"name": "platform:windows", "color": "0078D4"},
+            {"name": "platform:macos", "color": "999999"},
+            {"name": "ci/cd", "color": "ededed"},
+            {"name": "documentation", "color": "0075ca"},
+            {"name": "chromium-upgrade", "color": "FF6B35"},
+            {"name": "patch-conflict", "color": "B60205"}
+          ]
+        }
+      ],
+      "verification_gate": "git ls-files | wc -l >= 50. All directories in repository_structure exist. GitHub repo topics, labels, and branch protection are configured."
+    },
+
+    "phase_2": {
+      "name": "Python Build Utilities",
+      "description": "Write all Python utilities in utils/. These are the core of the build pipeline.",
+      "mcp_servers_used": ["filesystem", "context7", "sequential-thinking"],
+      "sequential_thinking_prompt": "Design a robust Python build utility system for a Chromium fork. The system must: handle 35GB source downloads with resume support, apply hundreds of patches with clear error reporting, perform text substitution across thousands of files, replace binary assets, and convert text filter lists to binary flatbuffer format. Each utility must be independently testable.",
+      "tasks": [
+        {
+          "id": "2.1",
+          "action": "write_python_utils",
+          "files": ["utils/downloads.py", "utils/patches.py", "utils/prune_binaries.py", "utils/domain_sub.py", "utils/replace_resources.py", "utils/generate_ruleset.py", "utils/update_patches.py", "utils/check_patches.py", "utils/build_info.py"],
+          "requirements": [
+            "All utils must have main() entry point and argparse CLI",
+            "All utils must have comprehensive docstrings",
+            "downloads.py must support resumable downloads and SHA-512 verification",
+            "patches.py must report patch failures with context (which file, which line)",
+            "generate_ruleset.py must produce valid subresource_filter flatbuffer format — verify format against chromium-src/components/subresource_filter/FILTER_LIST_GENERATION.md"
+          ]
+        }
+      ],
+      "verification_gate": "python3 -m py_compile utils/*.py must pass for all files. python3 utils/check_patches.py --help must show usage. python3 utils/downloads.py --dry-run downloads.ini must succeed."
+    },
+
+    "phase_3": {
+      "name": "Shell Build Scripts",
+      "description": "Write all shell scripts in scripts/ orchestrating the build pipeline.",
+      "mcp_servers_used": ["filesystem", "sequential-thinking"],
+      "tasks": [
+        {
+          "id": "3.1",
+          "action": "write_all_scripts",
+          "files": [
+            "scripts/common.sh",
+            "scripts/setup-build-env.sh",
+            "scripts/fetch-chromium-source.sh",
+            "scripts/prepare-source.sh",
+            "scripts/configure-build.sh",
+            "scripts/compile.sh",
+            "scripts/build-nickel.sh",
+            "scripts/build-deb.sh",
+            "scripts/build-appimage.sh",
+            "scripts/build-dmg.sh",
+            "scripts/build-windows-installer.sh",
+            "scripts/generate-checksums.sh",
+            "scripts/update-filter-lists.sh",
+            "scripts/verify-checksum.sh",
+            "scripts/check-patches.sh"
+          ],
+          "requirements": [
+            "set -euo pipefail in every script",
+            "Source common.sh at top of every script",
+            "All scripts must be idempotent (safe to run twice)",
+            "compile.sh must print elapsed time on completion",
+            "setup-build-env.sh must detect if tools already installed and skip"
+          ]
+        }
+      ],
+      "verification_gate": "bash -n scripts/*.sh passes for all scripts. shellcheck scripts/*.sh reports zero errors or warnings."
+    },
+
+    "phase_4": {
+      "name": "GN Build Configuration",
+      "description": "Write the GN configuration files for the Nickel Browser source build.",
+      "mcp_servers_used": ["context7", "filesystem", "duckduckgo-search"],
+      "critical_instruction": "Use Context7 MCP to look up EVERY GN argument name in the current Chromium source before writing args.gn. Query: 'Chromium GN build arguments list'. Wrong argument names fail silently during GN gen and produce a binary with wrong settings.",
+      "tasks": [
+        {
+          "id": "4.1",
+          "action": "write_gn_files",
+          "files": ["src/nickel/build/args.gn", "src/nickel/build/BUILD.gn"],
+          "args_gn_must_include": "All arguments listed in repository_structure.src.nickel.build.args.gn with verified-correct GN argument names"
+        }
+      ],
+      "verification_gate": "If GN is available: gn format --dry-run src/nickel/build/args.gn exits 0. Document any unverifiable args with TODO comments for CI verification."
+    },
+
+    "phase_5": {
+      "name": "Branding Patches and Resources",
+      "description": "Write branding patches and create all brand asset files.",
+      "mcp_servers_used": ["filesystem", "context7"],
+      "tasks": [
+        {
+          "id": "5.1",
+          "action": "write_branding_patches",
+          "patches": [
+            "patches/nickel/branding/0001-product-name-nickel.patch",
+            "patches/nickel/branding/0002-remove-google-branding.patch",
+            "patches/nickel/branding/0003-about-version-branding.patch",
+            "patches/nickel/branding/0004-user-agent-string.patch",
+            "patches/nickel/branding/0005-custom-ntp-registration.patch"
+          ]
+        },
+        {
+          "id": "5.2",
+          "action": "create_branding_assets",
+          "files": "All files in src/nickel/branding/ including resource_map.json and strings_override.grd"
+        },
+        {
+          "id": "5.3",
+          "action": "build_ntp",
+          "files": ["src/nickel/ntp/index.html", "src/nickel/ntp/ntp.css", "src/nickel/ntp/ntp.js", "src/nickel/ntp/nickel_ntp_ui.cc", "src/nickel/ntp/nickel_ntp_ui.h"],
+          "requirements": [
+            "Zero external network requests",
+            "Pure vanilla JS — no framework",
+            "Total bundle <50KB",
+            "Dark theme default using brand colors",
+            "Search bar defaults to DuckDuckGo",
+            "Privacy stats counter (ads blocked, trackers blocked)",
+            "Digital clock (12/24h configurable)"
+          ]
+        }
+      ],
+      "verification_gate": "python3 utils/check_patches.py patches/nickel/branding/ reports all patches apply cleanly. NTP HTML validates with W3C validator. NTP JS has no syntax errors."
+    },
+
+    "phase_6": {
+      "name": "Privacy Patches",
+      "description": "Port and write all privacy enhancement patches.",
+      "mcp_servers_used": ["firecrawl", "context7", "filesystem", "sequential-thinking"],
+      "sequential_thinking_prompt": "For each privacy patch, determine: (1) which Chromium source files need modification, (2) whether a proven implementation already exists in Cromite/Bromite, (3) what the exact C++ change is, (4) how to test it. Plan all 12 privacy patches before writing any of them.",
+      "tasks": [
+        {
+          "id": "6.1",
+          "action": "fetch_reference_patches",
+          "sources": [
+            "Fetch Cromite canvas noise patch from their GitHub",
+            "Fetch Cromite WebGL spoof patch",
+            "Fetch Bromite AudioContext noise patch",
+            "Fetch Helium hardware API restriction patch",
+            "Study ungoogled-chromium's existing WebRTC patch"
+          ],
+          "tool": "firecrawl"
+        },
+        {
+          "id": "6.2",
+          "action": "write_privacy_patches",
+          "patches": [
+            "patches/nickel/privacy/0010-disable-webrtc-ip-leak.patch",
+            "patches/nickel/privacy/0011-canvas-fingerprint-noise.patch",
+            "patches/nickel/privacy/0012-webgl-vendor-spoof.patch",
+            "patches/nickel/privacy/0013-audiocontext-fingerprint-noise.patch",
+            "patches/nickel/privacy/0014-hardware-api-restrictions.patch",
+            "patches/nickel/privacy/0015-font-enumeration-block.patch",
+            "patches/nickel/privacy/0016-first-party-isolation.patch",
+            "patches/nickel/privacy/0017-https-only-mode-default.patch",
+            "patches/nickel/privacy/0018-doh-quad9-default.patch",
+            "patches/nickel/privacy/0019-block-google-internal-domains.patch",
+            "patches/nickel/privacy/0020-screen-resolution-normalize.patch",
+            "patches/nickel/privacy/0021-timezone-protection.patch"
+          ]
+        }
+      ],
+      "verification_gate": "python3 utils/check_patches.py patches/nickel/privacy/ reports all patches apply cleanly against the Chromium source tree at pinned version."
+    },
+
+    "phase_7": {
+      "name": "Ad Blocking Integration",
+      "description": "Implement source-level ad blocking using Chromium's native subresource_filter component.",
+      "mcp_servers_used": ["context7", "filesystem", "sequential-thinking", "firecrawl"],
+      "critical_architecture_note": "DO NOT implement uBlock Origin as an extension. MV3 broke it. Use Chromium's subresource_filter component. Read chromium-src/components/subresource_filter/README.md before writing any code.",
+      "tasks": [
+        {
+          "id": "7.1",
+          "action": "study_subresource_filter",
+          "description": "Read the subresource_filter component documentation and source code to understand: activation model, ruleset format, how to add custom rulesets, how cosmetic filtering hooks in.",
+          "files_to_read": [
+            "chromium-src/components/subresource_filter/README.md",
+            "chromium-src/components/subresource_filter/FILTER_LIST_GENERATION.md",
+            "chromium-src/components/subresource_filter/core/browser/ruleset_service.cc"
+          ]
+        },
+        {
+          "id": "7.2",
+          "action": "write_adblocking_patches",
+          "patches": [
+            "patches/nickel/adblocking/0030-enable-subresource-filter-always.patch",
+            "patches/nickel/adblocking/0031-load-nickel-filter-ruleset.patch",
+            "patches/nickel/adblocking/0032-cosmetic-filter-engine.patch",
+            "patches/nickel/adblocking/0033-cname-uncloaking.patch",
+            "patches/nickel/adblocking/0034-anti-adblock-detection-evasion.patch",
+            "patches/nickel/adblocking/0035-youtube-ad-blocking.patch",
+            "patches/nickel/adblocking/0036-sponsorblock-integration.patch"
+          ]
+        },
+        {
+          "id": "7.3",
+          "action": "populate_filter_lists",
+          "description": "Run scripts/update-filter-lists.sh to populate all filter list files with current content. Commit the initial copies.",
+          "then": "Verify utils/generate_ruleset.py converts them to valid flatbuffer format"
+        }
+      ],
+      "verification_gate": "After build: Playwright test navigates to d3ward.github.io/toolz/adblock and asserts score >= 95%. YouTube ad test passes."
+    },
+
+    "phase_8": {
+      "name": "Feature Patches",
+      "description": "Write feature patches for vertical tabs, workspaces, split view, and all other Nickel features.",
+      "mcp_servers_used": ["context7", "filesystem", "sequential-thinking"],
+      "sequential_thinking_prompt": "Each feature patch modifies Chromium's UI layer (views framework). Plan which files each feature touches, whether it conflicts with any privacy or branding patches already applied, and whether it can be implemented fully in v1.0 or should be deferred. For deferred features: create the patch file as a stub with a TODO header and a chrome://flags entry to gate the incomplete feature.",
+      "v1_0_target_features": [
+        "0040-vertical-tabs-sidebar.patch",
+        "0041-workspaces.patch",
+        "0042-split-view.patch",
+        "0043-container-tabs.patch",
+        "0044-tab-sleep.patch",
+        "0045-session-manager.patch",
+        "0046-ipfs-protocol-handler.patch",
+        "0047-mouse-gestures.patch",
+        "0048-pip-global-button.patch",
+        "0049-download-manager-aria2.patch",
+        "0050-json-xml-viewer.patch",
+        "0051-qr-code-generator.patch",
+        "0052-notes-sidebar.patch",
+        "0053-keyboard-shortcut-remapper.patch",
+        "0054-exif-scrubber.patch",
+        "0055-local-password-vault.patch",
+        "0056-tor-private-tab.patch"
+      ],
+      "v1_1_deferred_features": [
+        "0057-vpn-client-wireguard.patch (complex — defer to v1.1)"
+      ],
+      "tasks": [
+        {
+          "id": "8.1",
+          "action": "write_feature_patches",
+          "for_each_patch": [
+            "Write the patch in valid unified diff format",
+            "Include patch metadata header: Description, Source, Target files, Test procedure",
+            "Add to patches/nickel/series in correct position after adblocking patches",
+            "Run python3 utils/check_patches.py on the new patch before moving to next"
+          ]
+        }
+      ],
+      "verification_gate": "python3 utils/check_patches.py patches/nickel/ reports all patches apply cleanly. patches/nickel/series lists all patch files in correct order."
+    },
+
+    "phase_9": {
+      "name": "Network Patches and Final Patch Series",
+      "description": "Write network-level blocking patches and finalize the complete patch series file.",
+      "mcp_servers_used": ["filesystem", "context7"],
+      "tasks": [
+        {
+          "id": "9.1",
+          "action": "write_network_patches",
+          "patches": [
+            "patches/nickel/network/0060-block-doubleclick-domains.patch",
+            "patches/nickel/network/0061-referrer-policy-strict.patch"
+          ]
+        },
+        {
+          "id": "9.2",
+          "action": "finalize_series_file",
+          "file": "patches/nickel/series",
+          "order": [
+            "All branding patches (0001-0005)",
+            "All privacy patches (0010-0021)",
+            "All adblocking patches (0030-0036)",
+            "All feature patches (0040-0056)",
+            "All network patches (0060-0061)"
+          ],
+          "requirement": "Every file listed in series must exist. Every patch file must be listed in series."
+        }
+      ],
+      "verification_gate": "python3 utils/check_patches.py patches/nickel/ --verify-series passes with zero errors. Count of entries in series equals count of .patch files."
+    },
+
+    "phase_10": {
+      "name": "CI/CD Workflows",
+      "description": "Write all GitHub Actions workflows.",
+      "mcp_servers_used": ["filesystem", "github", "context7"],
+      "tasks": [
+        {
+          "id": "10.1",
+          "action": "write_all_workflows",
+          "files": [
+            ".github/workflows/nickel-production-build.yml",
+            ".github/workflows/nickel-pr-check.yml",
+            ".github/workflows/nickel-security-audit.yml",
+            ".github/workflows/nickel-release.yml",
+            ".github/workflows/nickel-filter-update.yml",
+            ".github/workflows/nickel-patch-compat-check.yml"
+          ],
+          "key_requirements": [
+            "Production build MUST use self-hosted runners",
+            "PR checks MUST run on ubuntu-22.04 (no compilation, just validation)",
+            "Chromium source cache MUST be implemented (saves 35GB re-download)",
+            "Filter update workflow MUST run on schedule",
+            "Patch compat check MUST trigger when chromium_version.txt changes"
+          ]
+        },
+        {
+          "id": "10.2",
+          "action": "write_github_templates",
+          "files": [
+            ".github/ISSUE_TEMPLATE/bug_report.yml",
+            ".github/ISSUE_TEMPLATE/feature_request.yml",
+            ".github/ISSUE_TEMPLATE/security_vulnerability.md",
+            ".github/PULL_REQUEST_TEMPLATE.md",
+            ".github/CODEOWNERS",
+            ".github/dependabot.yml"
+          ]
+        }
+      ],
+      "verification_gate": "yamllint .github/workflows/*.yml passes with zero errors. actionlint .github/workflows/*.yml passes."
+    },
+
+    "phase_11": {
+      "name": "Documentation",
+      "description": "Write all documentation files.",
+      "mcp_servers_used": ["filesystem"],
+      "tasks": [
+        {
+          "id": "11.1",
+          "action": "write_all_docs",
+          "files": [
+            "README.md (full v3.0 readme with corrected build instructions)",
+            "CONTRIBUTING.md",
+            "SECURITY.md",
+            "docs/BUILD.md",
+            "docs/PATCHES.md",
+            "docs/ARCHITECTURE.md",
+            "docs/SECURITY.md",
+            "docs/PRIVACY_POLICY.md",
+            "docs/SELF_HOSTED_RUNNER_SETUP.md",
+            "docs/FILTER_LISTS.md",
+            "docs/ROADMAP.md",
+            "docs/BRANDING.md"
+          ],
+          "readme_correction": "README must update Quick Start to reflect source build reality: 'Full first build: 4-8 hours, 250GB disk. Incremental builds: 10-30 min.'"
+        }
+      ],
+      "verification_gate": "markdownlint --config .markdownlint.json docs/**/*.md README.md CONTRIBUTING.md SECURITY.md passes with zero errors."
+    },
+
+    "phase_12": {
+      "name": "Testing Suite",
+      "description": "Write all tests in tests/.",
+      "mcp_servers_used": ["playwright", "filesystem"],
+      "tasks": [
+        {
+          "id": "12.1",
+          "action": "write_all_tests",
+          "directories": [
+            "tests/smoke/",
+            "tests/privacy/",
+            "tests/adblocking/",
+            "tests/playwright/"
+          ],
+          "playwright_setup": [
+            "Create tests/playwright/package.json with @playwright/test dependency",
+            "Create tests/playwright/playwright.config.ts pointing to built Nickel binary",
+            "Create tests/playwright/tsconfig.json"
+          ]
+        }
+      ],
+      "verification_gate": "bash -n tests/**/*.sh passes. npx tsc --noEmit in tests/playwright/ passes. All smoke tests pass against built binary."
+    },
+
+    "phase_13": {
+      "name": "First Build Attempt and Release",
+      "description": "Execute the complete build pipeline on a self-hosted runner and produce the first alpha release artifacts.",
+      "mcp_servers_used": ["github", "filesystem"],
+      "tasks": [
+        {
+          "id": "13.1",
+          "action": "execute_build",
+          "on": "self-hosted runner meeting system_requirements.minimum",
+          "steps": [
+            "git clone the repo",
+            "Run scripts/setup-build-env.sh",
+            "Run scripts/build-nickel.sh",
+            "Run all smoke tests",
+            "Run all privacy tests",
+            "Run all adblocking tests",
+            "Run Playwright test suite",
+            "Run scripts/generate-checksums.sh"
+          ]
+        },
+        {
+          "id": "13.2",
+          "action": "create_release",
+          "tool": "github",
+          "tag": "v1.0.0-alpha",
+          "prerelease": true,
+          "artifacts": [
+            "dist/nickel-browser_1.0.0-alpha_amd64.deb",
+            "dist/Nickel-Browser-1.0.0-alpha-x86_64.AppImage",
+            "dist/Nickel-Browser-1.0.0-alpha.dmg",
+            "dist/Nickel-Browser-1.0.0-alpha-Setup.exe",
+            "dist/checksums.sha256"
+          ]
+        },
+        {
+          "id": "13.3",
+          "action": "create_milestones_and_issues",
+          "tool": "github",
+          "milestones": [
+            {"title": "v1.0 Stable", "due": "2026-06-30"},
+            {"title": "v1.1 Usability + Auto-Update", "due": "2026-09-30"},
+            {"title": "v1.2 Mobile (Android)", "due": "2026-12-31"},
+            {"title": "v1.3 Encrypted Sync", "due": "2027-03-31"},
+            {"title": "v2.0 Independence", "due": "2027-12-31"}
+          ],
+          "good_first_issues": [
+            "Run Speedometer 3.0 benchmark and submit results",
+            "Test build on Arch Linux (write PKGBUILD for AUR)",
+            "Add Arabic translation to UI strings",
+            "Design website mockup for nickel-browser.org",
+            "Write Flatpak manifest for Flathub submission",
+            "Test installation on Zorin OS 17",
+            "Test on macOS Apple Silicon (M1/M2/M3)",
+            "Add dark/light mode auto-detection to NTP",
+            "Write Docker build environment container",
+            "Refresh patch for Chromium upgrade (good for learning patch workflow)"
+          ]
+        }
+      ],
+      "verification_gate": "GitHub Release v1.0.0-alpha exists with all artifacts. sha256sum -c checksums.sha256 passes for all artifacts. Browser launches and NTP loads on all three platforms."
+    }
+  },
+
+  "patch_maintenance_strategy": {
+    "when_chromium_version_bumps": [
+      "Update chromium_version.txt and revision.txt",
+      "Update downloads.ini checksums",
+      "Run python3 utils/update_patches.py to test which patches need refresh",
+      "For each failing patch: apply manually, fix conflicts, regenerate patch with git diff",
+      "Run full test suite to verify nothing regressed",
+      "The nickel-patch-compat-check.yml workflow automates detection of broken patches"
+    ],
+    "patch_conflict_resolution": "When a patch conflicts after UC or Chromium upgrade, create a GitHub issue with label 'patch-conflict'. Any contributor can claim it, fix the conflict, and submit a PR.",
+    "upstream_sync_schedule": "Follow ungoogled-chromium releases — they typically lag Chromium stable by 1-2 weeks. Nickel should aim to release within 2 weeks of a new UC release."
+  },
+
+  "quality_gates_global": {
+    "must_always_pass": [
+      "shellcheck scripts/*.sh — zero errors",
+      "markdownlint docs/**/*.md README.md — zero errors",
+      "yamllint .github/workflows/*.yml — zero errors",
+      "python3 -m py_compile utils/*.py — zero errors",
+      "python3 utils/check_patches.py patches/nickel/ — all patches apply cleanly",
+      "Privacy audit: zero unexpected network connections",
+      "Adblock benchmark: >= 95% on d3ward.github.io/toolz/adblock",
+      "All smoke tests: exit 0",
+      "All Playwright tests: pass",
+      "No secrets detected by trufflehog or gitleaks",
+      "Build is reproducible: two builds from same source produce bit-identical binaries (target for v1.0)"
+    ]
+  },
+
+  "acknowledgments": {
+    "embed_in_about_page_and_readme": [
+      {"name": "ungoogled-chromium", "url": "https://github.com/ungoogled-software/ungoogled-chromium", "role": "Foundation — removes Google from Chromium"},
+      {"name": "Cromite", "url": "https://github.com/uazo/cromite", "role": "Privacy patches: fingerprinting protection"},
+      {"name": "Bromite", "url": "https://github.com/bromite/bromite", "role": "Privacy patches: audio/canvas/hardware API mitigations"},
+      {"name": "Helium Browser", "url": "https://github.com/imputnet/helium", "role": "Build pipeline inspiration, patch series approach"},
+      {"name": "Tor Project", "url": "https://www.torproject.org", "role": "Tor integration — onion routing technology"},
+      {"name": "Iridium Browser", "url": "https://iridiumbrowser.de/", "role": "Enterprise hardening patches"},
+      {"name": "Inox Patchset", "url": "https://github.com/gcarq/inox-patchset", "role": "Historical Chromium hardening patches"},
+      {"name": "Debian Chromium Team", "url": "https://tracker.debian.org/pkg/chromium-browser", "role": "Security-focused patches"},
+      {"name": "uBlock Origin", "url": "https://github.com/gorhill/uBlock", "role": "Filter list format and curation methodology"},
+      {"name": "SponsorBlock", "url": "https://sponsor.ajay.app", "role": "Sponsor segment skip API"},
+      {"name": "The Chromium Project", "url": "https://www.chromium.org", "role": "The browser engine powering Nickel"}
+    ]
+  }
+}
