@@ -87,7 +87,7 @@
     {
       "phase": 13,
       "name": "final-validation-and-handoff",
-      "verification_gate": "All verification gates 0-13 have passed and final report is complete."
+      "verification_gate": "All verification gates for phases 0-12 have passed and the final phase-13 handoff report is complete."
     }
   ]
 }
