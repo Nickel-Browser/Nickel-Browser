@@ -1,0 +1,93 @@
+{
+  "version": "4.0",
+  "name": "nickel-build-phased-execution",
+  "goal": "Execute build-hardening work in strict phase order with mandatory verification gates.",
+  "global_requirements": {
+    "phase_order": "strictly_sequential",
+    "block_on_failed_gate": true,
+    "required_mcp_tools": [
+      "sequential-thinking",
+      "context7",
+      "firecrawl",
+      "github",
+      "playwright"
+    ],
+    "api_verification": {
+      "verify_chromium_cpp_api_names": true,
+      "verify_gn_argument_names": true,
+      "verification_source": "context7"
+    }
+  },
+  "phases": [
+    {
+      "phase": 0,
+      "name": "intake-and-scope",
+      "verification_gate": "Problem statement, constraints, and acceptance criteria are documented and approved."
+    },
+    {
+      "phase": 1,
+      "name": "repo-baseline",
+      "verification_gate": "Baseline lint/build/test state is captured before code changes."
+    },
+    {
+      "phase": 2,
+      "name": "target-discovery",
+      "verification_gate": "All target files/components are mapped with minimal-change scope."
+    },
+    {
+      "phase": 3,
+      "name": "reference-research",
+      "verification_gate": "Relevant Cromite/Bromite reference patches are fetched and summarized via Firecrawl."
+    },
+    {
+      "phase": 4,
+      "name": "api-name-verification",
+      "verification_gate": "All Chromium C++ API names and GN args to be used are verified with Context7."
+    },
+    {
+      "phase": 5,
+      "name": "implementation-plan",
+      "verification_gate": "Sequential Thinking plan is completed with risk and rollback notes."
+    },
+    {
+      "phase": 6,
+      "name": "surgical-code-changes",
+      "verification_gate": "Minimal and focused code changes are applied to required files only."
+    },
+    {
+      "phase": 7,
+      "name": "focused-tests",
+      "verification_gate": "Targeted tests for changed behavior are added/updated where infrastructure exists."
+    },
+    {
+      "phase": 8,
+      "name": "targeted-validation",
+      "verification_gate": "Changed-area lint/build/test checks pass locally."
+    },
+    {
+      "phase": 9,
+      "name": "ui-verification",
+      "verification_gate": "Playwright-based UI verification passes and screenshots are captured for UI impact."
+    },
+    {
+      "phase": 10,
+      "name": "security-review",
+      "verification_gate": "Security review confirms no new vulnerabilities in changed code paths."
+    },
+    {
+      "phase": 11,
+      "name": "regression-check",
+      "verification_gate": "No regressions detected in existing behavior impacted by the change."
+    },
+    {
+      "phase": 12,
+      "name": "pr-readiness",
+      "verification_gate": "Diff is minimal, rationale is documented, and commits are clean."
+    },
+    {
+      "phase": 13,
+      "name": "final-validation-and-handoff",
+      "verification_gate": "All verification gates 0-13 have passed and final report is complete."
+    }
+  ]
+}

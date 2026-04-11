@@ -27,7 +27,8 @@ AppDir/
 *.AppImage
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/nickel-build-prompt-v4.json
 .idea/
 *.swp
 *.swo
