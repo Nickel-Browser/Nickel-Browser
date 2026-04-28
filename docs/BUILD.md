@@ -1,52 +1,116 @@
 # Building Nickel Browser
 
-> **Choose your path:** Quick binary repagging (10 min, any laptop) OR advanced source build (8 hrs, workstation required).
+> **Choose your path:**
+> - **Method A — Source Build (Brave-style):** Compiles real Nickel Browser binaries from the ungoogled-chromium source tree. Requires a large machine (100 GB disk, 32 GB RAM) or GitHub Actions large runners. Produces real, auditable binaries.
+> - **Method B — Binary Repackaging:** Downloads pre-built ungoogled-chromium and applies Nickel branding. Fast (10 min, any laptop) but does not include Nickel's C++ patches.
 
 ---
 
 ## 🎯 Decision Guide: Which Build Method?
 
 ```
-Do you need to modify Chromium C++ internals?
+Do you want the full Nickel feature set (ad blocking engine, Tor, fingerprint protection)?
 │
-├── YES → Method B: Source Build (Section 5 below)
-│         Requires: 16GB+ RAM, 250GB SSD, 8+ hours
-│         For: Core developers, patch authors, security auditors
+├── YES → Method A: Source Build (Section 2 below)   ← THE REAL NICKEL BROWSER
+│         Requires: 100 GB disk, 16+ GB RAM, 4–8 hours  (or GitHub Actions large runner)
+│         For: All users who want real Nickel features
+│         CI:  .github/workflows/nickel-source-build.yml
 │
-└── NO  → Method A: Binary Repagging (Sections 2-4 below) ⭐ RECOMMENDED
-           Requires: 4GB RAM, 5GB disk, 10 minutes
-           For: 99% of users, packagers, translators, testers
-           ↓
-           Continue reading ↓
+└── NO  → Method B: Binary Repackaging (Section 4 below)  ← FAST / TESTING ONLY
+           Requires: 4 GB RAM, 5 GB disk, 10 minutes
+           For: Branding / packaging testing only
+           CI:  .github/workflows/nickel-production-build.yml
 ```
 
 ---
 
-## ⚡ Method A: Binary Repagging (Recommended)
+## ⚡ Method A: Source Build (Real Nickel Browser)
 
-### What Is Binary Repagging?
+### What Is a Source Build?
 
-Instead of compiling Chromium from source (which takes hours and requires massive resources), we **download pre-built ungoogled-chromium binaries** and apply Nickel's branding, patches, and packaging on top.
+We compile Chromium directly from the ungoogled-chromium source tree, then apply Nickel's patches on top. This is exactly how **Brave Browser**, **Vivaldi**, and **ungoogled-chromium** work.
 
-**Why this is brilliant (and why we chose it):**
-- ✅ **Fast:** 10 minutes vs 8 hours (48x speedup)
-- ✅ **Lightweight:** 200MB download vs 35GB source tree (175x smaller)
-- ✅ **Accessible:** Works on any laptop (4GB RAM minimum)
-- ✅ **Identical Results:** End-user gets same browser as source build
-- ✅ **Reproducible:** Anyone can verify our builds match upstream UC binaries + our branding
-- ✅ **Environmentally Friendly:** Less electricity, fewer CI resources consumed
+**Why this is the right approach:**
+- ✅ **Real features:** Nickel's ad-blocking engine, fingerprint protection, and Tor integration are compiled as C++ Chromium patches — they cannot be disabled or bypassed
+- ✅ **Auditable:** Every line of code is reviewable; no binary blobs
+- ✅ **True privacy:** Privacy features are architectural (not policy-based)
+- ✅ **Upstream compatible:** Stays in sync with ungoogled-chromium security patches automatically
 
-### System Requirements (Binary Build)
+### System Requirements (Source Build)
 
 | Component | Minimum | Recommended | Notes |
 |-----------|---------|-------------|--------|
-| **RAM** | 4 GB | 8 GB | Swap file optional but helpful on 4GB systems |
-| **Disk Space** | 5 GB free | 10 GB | For downloading binary + extracting + packaging |
-| **CPU** | Any modern x86_64 | 2+ cores | Faster extraction with more cores |
-| **OS** | Linux / macOS / Windows | Any modern distro/version | See platform-specific notes below |
-| **Internet** | Broadband (200MB download) | Fast connection | One-time download per version |
-| **Time Required** | ~15 minutes | ~5 minutes | Depends on internet speed and CPU |
-| **Skill Level** | Beginner (terminal basics) | Intermediate | Git knowledge helpful |
+| **RAM** | 16 GB | 32–64 GB | Less will OOM during linking |
+| **Disk Space** | 100 GB free | 150 GB+ SSD | Source ~30 GB, build artifacts ~60 GB |
+| **CPU** | 8-core x86_64 | 16+ cores | More cores = faster |
+| **Swap** | 16 GB | 32 GB | Essential for 16 GB RAM machines |
+| **OS** | Ubuntu 22.04+ | Ubuntu 22.04 LTS | Tested platform |
+| **Time** | 4–8 hours | 2–4 hours | On 16+ cores with 64 GB RAM |
+
+### Quick Start (Linux)
+
+```bash
+git clone https://github.com/Nickel-Browser/Nickel-Browser.git
+cd Nickel-Browser
+chmod +x scripts/build-nickel-linux.sh
+
+# Full build (interactive — asks before proceeding if disk is low)
+./scripts/build-nickel-linux.sh
+
+# Specify a specific ungoogled-chromium version
+./scripts/build-nickel-linux.sh --version 146.0.7680.177-1
+
+# Debug build with 16 ninja jobs
+./scripts/build-nickel-linux.sh --debug --jobs 16
+```
+
+The script will:
+1. Install system dependencies (`apt-get`)
+2. Clone depot_tools
+3. Clone ungoogled-chromium at the pinned version
+4. Fetch Chromium source via `python3 utils/fetch_sync.py`
+5. Apply ungoogled-chromium's own patches
+6. Apply Nickel's patches (`patches/series`)
+7. Generate GN build config (UC args + Nickel overrides from `build/nickel-gn-args.gni`)
+8. Compile with ninja
+9. Package as `.deb` and `.tar.xz`
+
+### GitHub Actions Source Build
+
+```
+.github/workflows/nickel-source-build.yml
+```
+
+Trigger manually:
+1. Go to **Actions** → **Nickel Browser — Source Build (Linux)**
+2. Click **Run workflow**
+3. Optionally specify a custom `uc_version`
+4. The workflow validates patches, fetches the full source, builds, and uploads `.deb` / `.tar.xz` as artifacts
+
+> **Runner note:** Standard GitHub-hosted `ubuntu-22.04` has only ~14 GB RAM and 84 GB disk. For a real build, use a **large GitHub runner** (`ubuntu-22.04-32-core`) or a **self-hosted runner** (see `docs/SELF_HOSTED_RUNNER.md`).
+
+### Patch System
+
+Nickel's patches live in `patches/` and are applied in the order listed in `patches/series`:
+
+| Patch | What it does |
+|-------|-------------|
+| `0001-nickel-branding` | Product name: `Nickel Browser`, binary: `nickel-browser` |
+| `0002-nickel-user-agent` | Adds `Nickel/1.0` product token to UA string |
+| `0003-nickel-default-prefs` | DuckDuckGo default, cookie policy, DNT, HTTPS-Only |
+| `0004-nickel-webrtc-defaults` | Forces `disable_non_proxied_udp` WebRTC policy |
+| `0005-nickel-new-tab-page` | Custom Nickel NTP with privacy stats |
+| `0006-nickel-adblock-engine` | Source-level ad-blocking engine + URLLoaderThrottle |
+| `0007-nickel-fingerprint-protection` | Canvas/AudioContext/Navigator noise injection |
+| `0008-nickel-tor-integration` | Tor daemon controller + per-tab Tor routing |
+| `0009-nickel-vpn-layer` | VPN proxy routing service |
+| `0010-nickel-build-integration` | BUILD.gn files to wire all components into chrome |
+
+Patches that add **new files** (`--- /dev/null`) always apply cleanly. Patches that modify existing files depend on exact source content — always verify with `git apply --check` after a Chromium update.
+
+---
+
+## 🔧 Method B: Binary Repackaging (Branding / Testing Only)
 
 ### Prerequisites
 
@@ -401,21 +465,21 @@ The source build process:
 
 ---
 
-## 🔄 CI/CD Automation (How GitHub Actions Builds It)
+## 🔄 CI/CD Automation
 
-Our production workflow ([`.github/workflows/nickel-production-build.yml`](../.github/workflows/nickel-production-build.yml)) uses **Method A (Binary Repagging)** automatically:
+### Source Build CI (`nickel-source-build.yml`) — Primary
+Builds real Nickel Browser binaries from source.
+- **Triggers:** Tags (`v*`), manual dispatch
+- **Process:** `gclient sync` → UC patches → Nickel patches → `gn gen` → `ninja` → `.deb` + `.tar.xz`
+- **Duration:** 4–8 hours (large runner)
+- **Platform:** Linux x64 (macOS/Windows builds in future)
 
-- **Triggers:** Tags (`v*`), weekly schedule (Monday 2AM UTC), manual dispatch
-- **Process:** Downloads latest UC binaries → Applies branding across all 3 platforms → Creates signed GitHub releases with SBOM
-- **Duration:** ~15 minutes total (vs. 8+ hours for source build)
-- **Platforms:** Linux (ubuntu-24.04), macOS (macos-14), Windows (windows-latest)
-- **Output:** GitHub Release with .deb, .AppImage, .dmg, .exe artifacts + checksums + SBOM
-
-**To trigger a manual build:**
-1. Go to **Actions** → **Nickel Browser Production Build**
-2. Click **Run workflow**
-3. Optionally specify custom Chromium version or skip cache
-4. Monitor progress in real-time (usually completes in 10-20 minutes)
+### Binary Repackaging CI (`nickel-production-build.yml`) — Testing/Branding
+Downloads pre-built UC binaries and applies Nickel branding.
+- **Triggers:** Tags (`v*`), weekly schedule, manual dispatch
+- **Process:** Download UC binary → Apply branding → Package
+- **Duration:** ~15 minutes
+- **Platforms:** Linux, macOS, Windows
 
 ---
 

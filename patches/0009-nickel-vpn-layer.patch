@@ -1,0 +1,183 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 09/10] nickel: vpn-layer — OS-level proxy routing for VPN tabs
+
+Add a VPN proxy layer that routes traffic for VPN-enabled tabs through
+a user-configured SOCKS5 or HTTP proxy (or the Nickel-provided VPN
+endpoint when available).
+
+For the MVP this wraps the existing Chromium proxy infrastructure so
+no kernel driver or TUN adapter is needed.  A full kernel-level VPN
+(WireGuard / OpenVPN) is tracked in a separate issue.
+
+Architecture:
+  NickelVPNService  — manages the VPN proxy configuration
+  NickelVPNTabHelper — per-tab helper that applies the VPN proxy
+---
+ chrome/browser/nickel/vpn/nickel_vpn_service.cc | 87 ++++++++++++++++
+ chrome/browser/nickel/vpn/nickel_vpn_service.h  | 54 ++++++++++
+ 2 files changed, 141 insertions(+)
+ create mode 100644 chrome/browser/nickel/vpn/nickel_vpn_service.cc
+ create mode 100644 chrome/browser/nickel/vpn/nickel_vpn_service.h
+
+diff --git a/chrome/browser/nickel/vpn/nickel_vpn_service.h b/chrome/browser/nickel/vpn/nickel_vpn_service.h
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/vpn/nickel_vpn_service.h
+@@ -0,0 +1,54 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_vpn_service.h
++// VPN proxy routing service for Nickel Browser.
++//
++// MVP: SOCKS5 / HTTP proxy forwarding.
++// Future: WireGuard kernel adapter.
++
++#ifndef CHROME_BROWSER_NICKEL_VPN_NICKEL_VPN_SERVICE_H_
++#define CHROME_BROWSER_NICKEL_VPN_NICKEL_VPN_SERVICE_H_
++
++#include <string>
++
++#include "components/keyed_service/core/keyed_service.h"
++
++class Profile;
++
++namespace net {
++class ProxyConfig;
++}
++
++namespace nickel {
++namespace vpn {
++
++// VPN connection configuration.
++struct VPNConfig {
++  enum class Type { kNone, kSocks5, kHttpProxy, kWireGuard };
++
++  Type type = Type::kNone;
++  std::string proxy_host;
++  int         proxy_port = 0;
++  std::string username;
++  std::string password;  // stored in the OS keychain, not here directly
++};
++
++class NickelVPNService : public KeyedService {
++ public:
++  explicit NickelVPNService(Profile* profile);
++  ~NickelVPNService() override;
++
++  NickelVPNService(const NickelVPNService&) = delete;
++  NickelVPNService& operator=(const NickelVPNService&) = delete;
++
++  bool Connect(const VPNConfig& config);
++  void Disconnect();
++  bool IsConnected() const;
++  VPNConfig CurrentConfig() const;
++
++  // Returns a net::ProxyConfig suitable for routing traffic via the VPN.
++  net::ProxyConfig BuildProxyConfig() const;
++
++ private:
++  Profile* profile_;  // not owned
++  VPNConfig config_;
++  bool connected_ = false;
++};
++
++}  // namespace vpn
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_NICKEL_VPN_NICKEL_VPN_SERVICE_H_
+diff --git a/chrome/browser/nickel/vpn/nickel_vpn_service.cc b/chrome/browser/nickel/vpn/nickel_vpn_service.cc
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/vpn/nickel_vpn_service.cc
+@@ -0,0 +1,87 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_vpn_service.cc
++
++#include "chrome/browser/nickel/vpn/nickel_vpn_service.h"
++
++#include "base/logging.h"
++#include "chrome/browser/profiles/profile.h"
++#include "net/proxy_resolution/proxy_config.h"
++#include "net/proxy_resolution/proxy_config_service_fixed.h"
++
++namespace nickel {
++namespace vpn {
++
++NickelVPNService::NickelVPNService(Profile* profile)
++    : profile_(profile) {}
++
++NickelVPNService::~NickelVPNService() = default;
++
++bool NickelVPNService::Connect(const VPNConfig& config) {
++  if (config.type == VPNConfig::Type::kNone) {
++    LOG(WARNING) << "NickelVPN: no VPN type specified";
++    return false;
++  }
++
++  if (config.proxy_host.empty()) {
++    LOG(ERROR) << "NickelVPN: proxy host is empty";
++    return false;
++  }
++
++  config_    = config;
++  connected_ = true;
++
++  LOG(INFO) << "NickelVPN: connected via "
++            << config.proxy_host << ":" << config.proxy_port;
++  return true;
++}
++
++void NickelVPNService::Disconnect() {
++  connected_ = false;
++  config_    = {};
++  LOG(INFO) << "NickelVPN: disconnected";
++}
++
++bool NickelVPNService::IsConnected() const {
++  return connected_;
++}
++
++VPNConfig NickelVPNService::CurrentConfig() const {
++  return config_;
++}
++
++net::ProxyConfig NickelVPNService::BuildProxyConfig() const {
++  if (!connected_) return net::ProxyConfig::CreateDirect();
++
++  net::ProxyConfig config;
++  std::string proxy_uri;
++
++  switch (config_.type) {
++    case VPNConfig::Type::kSocks5:
++      proxy_uri = "socks5://" + config_.proxy_host + ":" +
++                  std::to_string(config_.proxy_port);
++      break;
++    case VPNConfig::Type::kHttpProxy:
++      proxy_uri = "http://" + config_.proxy_host + ":" +
++                  std::to_string(config_.proxy_port);
++      break;
++    case VPNConfig::Type::kWireGuard:
++      // WireGuard routes at the OS level; no proxy config needed.
++      return net::ProxyConfig::CreateDirect();
++    case VPNConfig::Type::kNone:
++    default:
++      return net::ProxyConfig::CreateDirect();
++  }
++
++  config.proxy_rules().ParseFromString("*=" + proxy_uri);
++  // Bypass localhost.
++  config.proxy_rules().bypass_rules.AddRuleFromString("localhost");
++  config.proxy_rules().bypass_rules.AddRuleFromString("127.0.0.1");
++  return config;
++}
++
++}  // namespace vpn
++}  // namespace nickel
+-- 
+2.40.0

@@ -1,0 +1,41 @@
+# Nickel Browser — Patch Series
+# ================================
+# Applied in order, on top of ungoogled-chromium's own patches,
+# via:  git apply --ignore-whitespace <patch>
+#
+# Patches that add new files (--- /dev/null) always succeed.
+# Patches that modify existing files must match the exact ungoogled-chromium
+# source state at the pinned version (see .chromium_version).
+#
+# Naming convention:
+#   NNNN-<category>-<description>.patch
+#
+# To regenerate a patch after editing source:
+#   cd ungoogled-chromium/chromium
+#   git diff HEAD > ../../patches/NNNN-<name>.patch
+
+# ---- Branding & Identity --------------------------------------------------
+0001-nickel-branding.patch
+0002-nickel-user-agent.patch
+
+# ---- Privacy Defaults -----------------------------------------------------
+0003-nickel-default-prefs.patch
+0004-nickel-webrtc-defaults.patch
+
+# ---- New Tab Page ---------------------------------------------------------
+0005-nickel-new-tab-page.patch
+
+# ---- Ad-Blocking Engine ---------------------------------------------------
+0006-nickel-adblock-engine.patch
+
+# ---- Fingerprint Protection -----------------------------------------------
+0007-nickel-fingerprint-protection.patch
+
+# ---- Tor Private Tabs -----------------------------------------------------
+0008-nickel-tor-integration.patch
+
+# ---- VPN Proxy Layer ------------------------------------------------------
+0009-nickel-vpn-layer.patch
+
+# ---- Build Integration (wire all Nickel components into chrome BUILD.gn) --
+0010-nickel-build-integration.patch
