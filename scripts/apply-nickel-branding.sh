@@ -19,8 +19,9 @@ if [ ! -d "$BINARY_DIR" ]; then
     exit 1
 fi
 
-# Find the Chromium root in the binary dir (it often has a subdir)
-CHROME_DIR=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome" -o -name "chromium" -type f | xargs dirname | head -n 1)
+# Find the Chromium root in the binary dir
+# ungoogled-chromium portable tarballs may use 'chrome' or 'chromium' as the binary name
+CHROME_DIR=$(find "$BINARY_DIR" -maxdepth 3 \( -name "chrome" -o -name "chromium" \) -type f -print0 | xargs -r -0 dirname | head -n 1)
 
 if [ -z "$CHROME_DIR" ]
 then

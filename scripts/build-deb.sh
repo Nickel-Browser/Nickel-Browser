@@ -23,8 +23,9 @@ mkdir -p "$PACKAGE_DIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$PACKAGE_DIR/usr/bin"
 
 # Copy binary files
-# Find the Chromium root in the binary dir (it often has a subdir)
-CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome" -type f | xargs dirname | head -n 1)
+# Find the Chromium root in the binary dir
+# ungoogled-chromium portable tarballs may use 'chrome' or 'chromium' as the binary name
+CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 3 \( -name "chrome" -o -name "chromium" \) -type f -print0 | xargs -r -0 dirname | head -n 1)
 
 if [ -z "$CHROME_ROOT" ]
 then
@@ -36,8 +37,10 @@ echo "📍 CHROME_ROOT: $CHROME_ROOT"
 cp -r "$CHROME_ROOT"/* "$PACKAGE_DIR/opt/nickel-browser/"
 
 # Rename the main binary to nickel-browser for consistency
-if [ -f "$PACKAGE_DIR/opt/nickel-browser/chrome" ]
-then
+# ungoogled-chromium portable builds may use 'chrome' or 'chromium'
+if [ -f "$PACKAGE_DIR/opt/nickel-browser/chromium" ]; then
+    mv "$PACKAGE_DIR/opt/nickel-browser/chromium" "$PACKAGE_DIR/opt/nickel-browser/nickel-browser"
+elif [ -f "$PACKAGE_DIR/opt/nickel-browser/chrome" ]; then
     mv "$PACKAGE_DIR/opt/nickel-browser/chrome" "$PACKAGE_DIR/opt/nickel-browser/nickel-browser"
 fi
 

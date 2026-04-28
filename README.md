@@ -35,7 +35,7 @@
     <img src="https://github.com/Nickel-Browser/Nickel-Browser/actions/workflows/nickel-production-build.yml/badge.svg?branch=main" alt="Build Status" />
   </a>
   <img src="https://img.shields.io/badge/license-BSD--3%20%2B%20GPLv3-blue" alt="License: Dual BSD-3 + GPLv3" />
-  <img src="https://img.shields.io/badge/version-1.0.0.alpha-orange" alt="Version: 1.0.0-alpha" />
+  <img src="https://img.shields.io/badge/version-1.0.0--alpha-orange" alt="Version: 1.0.0-alpha" />
   <img src="https://img.shields.io/badge/base-ungoogled--chromium-green" alt="Base: Ungoogled-Chromium" />
   <img src="https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platforms: Linux | macOS | Windows" />
   <img src="https://img.shields.io/badge/ad%20blocking-source%20level-FF0000" alt="Source-Level Ad Blocking" />
@@ -81,10 +81,11 @@
 
 | Platform | Package | Size | Architecture | Status |
 |----------|--------|------|-------------|--------|
-| **Linux (Debian/Ubuntu/Zorin/Mint)** | [.deb](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~150MB | x86_64 | ✅ Stable |
-| **Linux (Universal Portable)** | [AppImage](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~180MB | x86_64 | ✅ Stable |
-| **Windows (11/10)** | [.exe Installer](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~160MB | x86_64 | ✅ Stable |
-| **macOS (Sequoia/Sonoma/Ventura)** | [.dmg Disk Image](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~200MB | x86_64 + ARM64 | ✅ Stable |
+| **Linux (Debian/Ubuntu/Zorin/Mint)** | [.deb](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~150MB | x86_64 | ✅ Available (Nickel-branded ungoogled-chromium) |
+| **Windows (11/10)** | [.exe Installer](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~160MB | x86_64 | ✅ Available (Nickel-branded ungoogled-chromium) |
+| **macOS (Sequoia/Sonoma/Ventura)** | [.dmg Disk Image](https://github.com/Nickel-Browser/Nickel-Browser/releases/latest) | ~200MB | x86_64 + ARM64 | ✅ Available (Nickel-branded ungoogled-chromium) |
+
+> **Note:** Current releases apply Nickel branding on top of pre-built [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) binaries. Source-compiled builds (with Nickel's native ad-blocking engine, Tor integration, and fingerprint protection compiled in) require a large runner — see [docs/BUILD.md](docs/BUILD.md) and [docs/SELF_HOSTED_RUNNER.md](docs/SELF_HOSTED_RUNNER.md).
 
 <details>
 <summary><b>🖥️ Installation Instructions (Click to expand)</b></summary>
@@ -132,25 +133,30 @@ sha256sum nickel-browser*
 
 </details>
 
-[**See all releases →**](https://github.com/Nickel-Browser/Nickel-Browser/releases)]
+[**See all releases →**](https://github.com/Nickel-Browser/Nickel-Browser/releases)
 
 ---
 
 ## ⚡ Quick Start: Build Your Own in 10 Minutes
 
-> **Don't want to wait for releases? Build it yourself!** Unlike other Chromium forks requiring 35GB of source code and 8 hours of compilation, Nickel uses **binary repagging** — downloading pre-built ungoogled-chromium binaries (~200MB) and applying our branding. **Total time: ~10 minutes. Any laptop. 4GB RAM minimum.**
+> **Don't want to wait for releases? Build it yourself!** Nickel's fast build path downloads pre-built ungoogled-chromium binaries (~200MB) and applies Nickel branding. **Total time: ~10 minutes. Any laptop. 4GB RAM minimum.**
+>
+> **Want the full Nickel feature set** (source-level ad blocking, Tor, fingerprint protection)? See [docs/BUILD.md — Method A: Source Build](docs/BUILD.md) — this requires a large machine or self-hosted runner.
 
-### Why Binary Repagging Beats Source Building
+### Binary Repackaging vs. Source Build
 
-| Aspect | Binary Repagging (Our Method) | Source Building (Old Way) |
+| Aspect | Binary Repackaging (fast path) | Source Build (full Nickel) |
 |---------|------------------------------|----------------------|
 | **Download Size** | ~200 MB | ~35 GB |
 | **Build Time** | 5–10 minutes | 4–8 hours |
-| **Disk Space Needed** | 5 GB | 250 GB+ |
+| **Disk Space Needed** | 5 GB | 150 GB+ |
 | **RAM Required** | 4 GB | 16–32 GB |
 | **CPU Required** | Any modern CPU | 8+ cores recommended |
 | **Skill Level** | Beginner | Advanced Linux developer |
-| **Result** | Identical end-user browser | Identical end-user browser |
+| **Ad-blocking engine** | ❌ Not compiled in | ✅ Source-level (undetectable) |
+| **Tor integration** | ❌ Not compiled in | ✅ Built-in |
+| **Fingerprint protection** | ❌ Not compiled in | ✅ Built-in |
+| **Privacy baseline** | ✅ ungoogled-chromium defaults | ✅ ungoogled-chromium + Nickel patches |
 
 ### Prerequisites (Minimal)
 
@@ -174,16 +180,15 @@ export NICKEL_DIR=$(pwd) BINARY_DIR=./uc-binary NICKEL_VERSION="1.0.0-alpha"
 ./scripts/apply-nickel-branding.sh
 
 # 3. Package for Your Platform
-chmod +x scripts/build-deb.sh && ./scripts/build-deb.sh  # Linux .deb
-# OR: chmod +x scripts/build-appimage.sh && ./scripts/build-appimage.sh  # Linux AppImage
-# OR: chmod +x scripts/build-dmg.sh && ./scripts/build-dmg.sh  # macOS .dmg
+chmod +x scripts/build-deb.sh && ./scripts/build-deb.sh              # Linux .deb
+# OR: chmod +x scripts/build-dmg.sh && ./scripts/build-dmg.sh        # macOS .dmg
 # OR: chmod +x scripts/build-windows-installer.sh && ./scripts/build-windows-installer.sh  # Windows .exe
 
 # Done! Find your browser:
 ls -lh dist/
 ```
 
-[**See detailed build guide with troubleshooting →**](docs/BUILD.md)]
+[**See detailed build guide with troubleshooting →**](docs/BUILD.md)
 
 ---
 

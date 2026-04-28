@@ -303,17 +303,29 @@ jobs:
 
           # ungoogled-chromium provides a domain substitution list and a
           # DEPS file that works with gclient.  Their utils/fetch_sync.py
-          # wraps the full gclient sync call.
+          # wraps the full gclient sync call on newer releases; older releases
+          # require calling gclient directly.
           echo "📡 Fetching Chromium $CHROMIUM_VERSION source (~30 GB)..."
 
           # Configure git for large repos
           git config --global core.compression 0
           git config --global http.postBuffer 2097152000
 
-          # Run UC's sync helper (this calls `gclient sync` internally)
-          python3 utils/fetch_sync.py \
-            --chromium-version "$CHROMIUM_VERSION" \
-            --output-directory chromium
+          if [[ -f "utils/fetch_sync.py" ]]; then
+            echo "Using utils/fetch_sync.py..."
+            python3 utils/fetch_sync.py \
+              --chromium-version "$CHROMIUM_VERSION" \
+              --output-directory chromium
+          else
+            echo "fetch_sync.py not found; falling back to gclient sync directly..."
+            mkdir -p chromium
+            cd chromium
+            fetch --nohooks chromium
+            gclient sync \
+              --with_branch_heads \
+              --with_tags \
+              -v
+          fi
 
           echo "✅ Chromium source fetched"
           df -h
