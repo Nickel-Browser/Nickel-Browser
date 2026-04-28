@@ -92,10 +92,35 @@ defaults:
 
 jobs:
   # ==========================================================================
+  # JOB 0: LINT — Shell Script Quality Check
+  # ==========================================================================
+  lint-scripts:
+    name: 🔍 Lint Shell Scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: 🔧 Install shellcheck
+        run: sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: 🔍 Run shellcheck
+        run: |
+          echo "Running shellcheck on all scripts..."
+          shellcheck -S warning scripts/*.sh
+          echo "✅ All shell scripts passed shellcheck"
+
+  # ==========================================================================
   # JOB 1: PREPARE - Check for Updates & Metadata
   # ==========================================================================
   prepare:
     name: 🔍 Prepare Build Metadata
+    needs: lint-scripts
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -111,7 +136,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          persist-credentials: false
 
       - name: 📅 Get Date
         id: date
@@ -665,9 +689,11 @@ jobs:
         run: |
           # Generate simple changelog from git history
           CHANGELOG=$(git log --oneline --no-merges -20 2>/dev/null || echo "Initial release")
-          echo "changelog<> "$GITHUB_OUTPUT"
-          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2

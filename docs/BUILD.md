@@ -68,10 +68,10 @@ The script will:
 1. Install system dependencies (`apt-get`)
 2. Clone depot_tools
 3. Clone ungoogled-chromium at the pinned version
-4. Fetch Chromium source via `python3 utils/fetch_sync.py`
+4. Fetch Chromium source via `python3 utils/fetch_sync.py` (falls back to `gclient sync` on older UC releases)
 5. Apply ungoogled-chromium's own patches
 6. Apply Nickel's patches (`patches/series`)
-7. Generate GN build config (UC args + Nickel overrides from `build/nickel-gn-args.gni`)
+7. Generate GN build config (ungoogled-chromium's curated GN args + Nickel overrides appended inline)
 8. Compile with ninja
 9. Package as `.deb` and `.tar.xz`
 
@@ -87,7 +87,11 @@ Trigger manually:
 3. Optionally specify a custom `uc_version`
 4. The workflow validates patches, fetches the full source, builds, and uploads `.deb` / `.tar.xz` as artifacts
 
-> **Runner note:** Standard GitHub-hosted `ubuntu-22.04` has only ~14 GB RAM and 84 GB disk. For a real build, use a **large GitHub runner** (`ubuntu-22.04-32-core`) or a **self-hosted runner** (see `docs/SELF_HOSTED_RUNNER.md`).
+> **⚠️ Runner note:** Standard GitHub-hosted runners (`ubuntu-22.04`) have only ~14 GB RAM and 84 GB disk — **not enough for a Chromium source build**. This includes the free runners provided by GitHub Education/Pro.
+>
+> To run a source build you need one of:
+> - **Self-hosted runner** on a machine with 32+ GB RAM and 150+ GB free disk (see [SELF_HOSTED_RUNNER.md](SELF_HOSTED_RUNNER.md))
+> - **GitHub Large Runner** (`ubuntu-22.04-32-core`) — available on GitHub Team/Enterprise plans
 
 ### Patch System
 
@@ -133,9 +137,6 @@ jq 1.6+ (JSON processor)
 # Debian/Ubuntu/Zorin/Mint
 sudo apt update
 sudo apt install -y git curl wget jq tar gzip coreutils
-
-# Optional: For AppImage building (only if building AppImage locally)
-sudo apt install -y appimage-builder 2>/dev/null || echo "AppImage builder optional"
 
 # Optional: For DMG building on Linux (cross-compilation)
 # sudo apt install -y genisoimage
@@ -328,18 +329,7 @@ ls -lh $DIST_DIR/
 # Expected: nickel-browser_1.0.0-alpha_amd64.deb (~150MB)
 ```
 
-**Option B: Linux AppImage (Universal Portable)**
-
-```bash
-# Build AppImage (runs anywhere, no installation)
-./scripts/build-appimage.sh
-
-# Verify
-ls -lh $DIST_DIR/
-# Expected: Nickel-Browser-1.0.0-alpha.AppImage (~180MB)
-```
-
-**Option C: macOS .dmg Disk Image**
+**Option B: macOS .dmg Disk Image**
 
 ```bash
 # Set output directory
@@ -354,7 +344,7 @@ ls -lh $DIST_DIR/
 # Expected: Nickel-Browser-1.0.0-alpha.dmg (~200MB)
 ```
 
-**Option D: Windows .exe Installer**
+**Option C: Windows .exe Installer**
 
 ```bash
 # Set output directory
@@ -369,20 +359,19 @@ ls -lh $DIST_DIR/
 # Expected: Nickel-Browser-1.0.0-alpha.exe (~160MB)
 ```
 
-**Option E: Multiple Platforms (Build All At Once)**
+**Option D: Multiple Platforms (Build All At Once)**
 
 ```bash
 # Build everything!
 export DIST_DIR=./dist
 mkdir -p $DIST_DIR
 
-./scripts/build-deb.sh       && echo "✅ DEB done" || echo "❌ DEB failed"
-./scripts/build-appimage.sh   && echo "✅ AppImage done" || echo "❌ AppImage failed"
-./scripts/build-dmg.sh         && echo "✅ DMG done" || echo "❌ DMG failed"
-./scripts/build-windows-installer.sh && echo "✅ EXE done" || echo "❌ EXE failed"
+./scripts/build-deb.sh                   && echo "✅ DEB done"  || echo "❌ DEB failed"
+./scripts/build-dmg.sh                   && echo "✅ DMG done"  || echo "❌ DMG failed"
+./scripts/build-windows-installer.sh     && echo "✅ EXE done"  || echo "❌ EXE failed"
 
 # Show results
-echo "\n=== Build Artifacts ==="
+echo "=== Build Artifacts ==="
 ls -lh $DIST_DIR/*
 ```
 
@@ -396,11 +385,10 @@ echo "=== Final Artifacts ==="
 ls -lh
 
 # Generate checksums (IMPORTANT for security verification!)
-echo "" > checksums.sha256
-sha256sum * >> checksums.sha256
+sha256sum * > checksums.sha256
 
 # Display checksums
-echo "\n=== Checksums ==="
+echo "=== Checksums ==="
 cat checksums.sha256
 ```
 
@@ -408,19 +396,17 @@ cat checksums.sha256
 ```
 === Final Artifacts ===
 -rw-r--r-- 1 user user 153M Apr  7 12:34 nickel-browser_1.0.0-alpha_amd64.deb
--rw-r--r-- 1 user user 178M Apr  7 12:35 Nickel-Browser-1.0.0-alpha.AppImage
 -rw-r--r-- 1 user user 200M Apr  7 12:36 Nickel-Browser-1.0.0-alpha.dmg
 -rw-r--r-- 1 user user 160M Apr  7 12:37 Nickel-Browser-1.0.0-alpha.exe
 
-=== Checksums=
+=== Checksums ===
 abc123def456...  nickel-browser_1.0.0-alpha_amd64.deb
-ghi789jkl012...  Nickel-Browser-1.0.0-alpha.AppImage
 mno345pqr678...  Nickel-Browser-1.0.0-alpha.dmg
 stu901uvw234...  Nickel-Browser-1.0.0-alpha.exe
 ```
 
 > 🎉 **Congratulations!** Your Nickel Browser builds are ready in the `dist/` directory!
-> Test them: `./dist/Nickel-Browser-1.0.0-alpha.AppImage` (Linux) or double-click the .dmg/.exe.
+> Test them: install the `.deb` with `sudo dpkg -i *.deb` (Linux) or double-click the `.dmg`/`.exe`.
 
 ---
 
@@ -457,11 +443,11 @@ The source build process:
 3. **Apply Nickel-specific patches** (privacy defaults, UI changes, feature additions)
 4. **Configure build** with GN args (optimize for privacy and performance)
 5. **Compile** with Ninja (4-8 hours depending on hardware)
-6. **Package** for distribution (.deb, .AppImage, .dmg, .exe)
+6. **Package** for distribution (`.deb`, `.tar.xz`)
 
 [**See detailed source-build walkthrough →**](docs/BUILD_SOURCE.md)
 
-> 💡 **Tip:** The binary repagging method (Method A) produces functionally identical end-user results for testing UI changes, branding updates, and packaging modifications. Only use source build if you absolutely must modify Chromium internals.
+> 💡 **Tip:** The binary repackaging method (Method B) is useful for testing UI changes, branding updates, and packaging modifications quickly. Use source build if you need Nickel's native privacy features (ad-blocking engine, Tor, fingerprint protection) compiled in.
 
 ---
 
@@ -494,8 +480,7 @@ Downloads pre-built UC binaries and applies Nickel branding.
 | **"chrome binary not found"** | Ensure download completed successfully. Check `uc-binary/` or your custom target directory exists and contains `chrome` or `chromium` executable. |
 | **Permission denied running scripts** | Run `chmod +x scripts/*.sh` before executing. Ensure scripts have Unix line endings (LF, not CRLF). |
 | **dpkg-deb errors** | Check `DEBIAN/control` file in build-deb.sh: no trailing spaces, proper newlines between fields, `Architecture: amd64` correct. |
-| **AppImage build fails** | Install `appimage-builder`: `sudo apt install appimage-builder`. Check AppImageBuilder recipe file exists in repo. |
-| **Wrong architecture error** | Binary builds are x86_64 only currently. ARM64 support planned for v1.2. |
+| **Wrong architecture error** | Binary builds are x86_64 only currently. ARM64 support planned for a future release. |
 | **Checksum mismatch** | Re-download binary. File may have been corrupted during transfer. |
 
 ### Source Build Issues (Method B)

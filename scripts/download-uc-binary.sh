@@ -37,13 +37,13 @@ case $PLATFORM in
         ;;
 esac
 
-# Headers for API calls
-AUTH_HEADER=""
+# Build curl auth flags (avoid eval — pass as an array for safety)
+CURL_AUTH=()
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-    AUTH_HEADER="-H \"Authorization: token $GITHUB_TOKEN\""
+    CURL_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}")
 fi
 
-CURL_OPTS="-sL --connect-timeout 30 --max-time 600"
+CURL_OPTS=(-sL --connect-timeout 30 --max-time 600)
 
 # Determine if we should use 'latest' or a specific tag
 # Note: tags might slightly differ between repos (e.g. 146.0.7680.177-1 vs 146.0.7680.177-1.1)
@@ -51,7 +51,7 @@ CURL_OPTS="-sL --connect-timeout 30 --max-time 600"
 
 echo "📡 Fetching releases from $REPO..."
 RELEASES_URL="https://api.github.com/repos/$REPO/releases"
-RELEASE_DATA=$(eval curl $CURL_OPTS "$AUTH_HEADER" "$RELEASES_URL")
+RELEASE_DATA=$(curl "${CURL_OPTS[@]}" ${CURL_AUTH:+"${CURL_AUTH[@]}"} "$RELEASES_URL")
 
 # Check if RELEASE_DATA is a valid JSON array
 if [ -z "$RELEASE_DATA" ] || ! echo "$RELEASE_DATA" | jq -e 'type == "array"' > /dev/null; then
@@ -82,7 +82,7 @@ echo "✅ Found matching release: $TARGET_TAG"
 
 # Get the specific release data
 API_URL="https://api.github.com/repos/$REPO/releases/tags/$TARGET_TAG"
-RELEASE_DATA=$(eval curl $CURL_OPTS "$AUTH_HEADER" "$API_URL")
+RELEASE_DATA=$(curl "${CURL_OPTS[@]}" ${CURL_AUTH:+"${CURL_AUTH[@]}"} "$API_URL")
 
 if [ -z "$RELEASE_DATA" ] || [ "$(echo "$RELEASE_DATA" | jq '.assets')" = "null" ]; then
     echo "❌ Error: Failed to fetch assets for release $TARGET_TAG"

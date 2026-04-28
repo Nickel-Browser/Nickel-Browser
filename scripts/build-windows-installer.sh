@@ -16,7 +16,7 @@ DIST_DIR="${DIST_DIR:-$NICKEL_DIR/dist}"
 echo "📦 Building Windows Installer..."
 
 # Find the Chromium root in the binary dir (it's often the root for Windows)
-CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome.exe" -type f | xargs dirname | head -n 1)
+CHROME_ROOT=$(find "$BINARY_DIR" -maxdepth 2 -name "chrome.exe" -type f -print0 | xargs -r -0 dirname | head -n 1)
 
 if [ -z "$CHROME_ROOT" ]
 then
