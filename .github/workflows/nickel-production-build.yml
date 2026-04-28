@@ -666,7 +666,7 @@ jobs:
   # ==========================================================================
   release:
     name: 🚀 Create Release
-    needs: [build-linux, build-macos, build-windows]
+    needs: [prepare, build-linux, build-macos, build-windows]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
