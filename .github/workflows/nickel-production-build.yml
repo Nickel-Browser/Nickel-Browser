@@ -71,10 +71,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_type != 'tag' }}
 
 # Minimal permissions for security
+# Note: 'contents: write' covers release creation (there is no 'releases' permission key)
 permissions:
   contents: write
   packages: read
-  releases: write
   id-token: write
   actions: read
   checks: write
