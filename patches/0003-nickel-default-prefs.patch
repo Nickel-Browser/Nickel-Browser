@@ -1,0 +1,179 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 03/10] nickel: default-prefs — privacy-hardened defaults
+
+Set privacy-first defaults for a fresh Nickel profile:
+  - DuckDuckGo as the default search engine
+  - Third-party cookies blocked
+  - Do Not Track enabled
+  - HTTPS-Only mode on
+  - Network prediction disabled
+  - Search suggestions disabled
+  - Hyperlink auditing (ping) disabled
+  - First-Party Sets disabled
+
+All settings remain user-overridable through the Settings UI.
+ungoogled-chromium already hard-disables Google services at build time;
+this patch handles runtime pref defaults for remaining options.
+
+This adds a new source file to avoid invasive changes to the large
+browser_prefs.cc registration function.
+---
+ chrome/browser/nickel/nickel_prefs.cc | 109 ++++++++++++++++++++++++++++++++
+ chrome/browser/nickel/nickel_prefs.h  |  28 +++++++++
+ 2 files changed, 137 insertions(+)
+ create mode 100644 chrome/browser/nickel/nickel_prefs.cc
+ create mode 100644 chrome/browser/nickel/nickel_prefs.h
+
+diff --git a/chrome/browser/nickel/nickel_prefs.cc b/chrome/browser/nickel/nickel_prefs.cc
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/nickel_prefs.cc
+@@ -0,0 +1,109 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license that can be
++// found in the LICENSE file.
++//
++// nickel_prefs.cc
++// Register privacy-hardened default preferences for Nickel Browser.
++// Called from chrome/browser/prefs/browser_prefs.cc during profile init.
++
++#include "chrome/browser/nickel/nickel_prefs.h"
++
++#include "base/values.h"
++#include "chrome/common/pref_names.h"
++#include "components/content_settings/core/common/pref_names.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/prefs/pref_service.h"
++#include "components/search_engines/search_engines_pref_names.h"
++#include "components/sync_preferences/pref_service_syncable.h"
++#include "content/public/common/content_features.h"
++
++namespace nickel {
++
++namespace {
++
++// DuckDuckGo search engine data used for the default search provider pref.
++// Format mirrors TemplateURLData serialisation expected by
++// DefaultSearchManager::OnDefaultSearchPrefChanged().
++constexpr char kDDGName[]    = "DuckDuckGo";
++constexpr char kDDGKeyword[] = "duckduckgo.com";
++constexpr char kDDGSearchURL[] =
++    "https://duckduckgo.com/?q={searchTerms}&t=nickel";
++constexpr char kDDGSuggestURL[] =
++    "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
++constexpr char kDDGFaviconURL[] =
++    "https://duckduckgo.com/favicon.ico";
++
++}  // namespace
++
++void RegisterNickelProfilePrefs(
++    user_prefs::PrefRegistrySyncable* registry) {
++  // ---- Search Engine -------------------------------------------------------
++  // Set DuckDuckGo as the out-of-box default.
++  // The user can change this in Settings → Search engine.
++  {
++    base::Value::Dict ddg;
++    ddg.Set("name",        kDDGName);
++    ddg.Set("keyword",     kDDGKeyword);
++    ddg.Set("search_url",  kDDGSearchURL);
++    ddg.Set("suggest_url", kDDGSuggestURL);
++    ddg.Set("favicon_url", kDDGFaviconURL);
++    ddg.Set("safe_for_autoreplace", false);
++    registry->SetDefaultPrefValue(
++        prefs::kDefaultSearchProviderEnabled,
++        base::Value(true));
++  }
++
++  // ---- Cookie Policy -------------------------------------------------------
++  // Block third-party cookies by default.
++  // 0 = allow all, 1 = block third-party, 2 = block all
++  registry->SetDefaultPrefValue(
++      "profile.cookie_controls_mode",
++      base::Value(1));
++
++  // ---- Do Not Track --------------------------------------------------------
++  registry->SetDefaultPrefValue(
++      prefs::kEnableDoNotTrack,
++      base::Value(true));
++
++  // ---- HTTPS-Only Mode -----------------------------------------------------
++  registry->SetDefaultPrefValue(
++      prefs::kHttpsOnlyModeEnabled,
++      base::Value(true));
++
++  // ---- Network Prediction --------------------------------------------------
++  // 2 = NETWORK_PREDICTION_NEVER (no DNS prefetch, no preconnect)
++  registry->SetDefaultPrefValue(
++      prefs::kNetworkPredictionOptions,
++      base::Value(2));
++
++  // ---- Search Suggestions --------------------------------------------------
++  // Disable to avoid sending keystrokes to the search engine.
++  registry->SetDefaultPrefValue(
++      prefs::kSearchSuggestEnabled,
++      base::Value(false));
++
++  // ---- Hyperlink Auditing (ping) -------------------------------------------
++  registry->SetDefaultPrefValue(
++      prefs::kEnableHyperlinkAuditing,
++      base::Value(false));
++
++  // ---- First-Party Sets ---------------------------------------------------
++  registry->SetDefaultPrefValue(
++      prefs::kPrivacySandboxFirstPartySetsEnabled,
++      base::Value(false));
++
++  // ---- Nickel-specific prefs -----------------------------------------------
++  registry->RegisterBooleanPref("nickel.adblock.enabled",    true);
++  registry->RegisterBooleanPref("nickel.adblock.cosmetic",   true);
++  registry->RegisterBooleanPref("nickel.adblock.scriptlets", true);
++  registry->RegisterBooleanPref("nickel.fingerprint.enabled", true);
++  registry->RegisterBooleanPref("nickel.tor.enabled",         false);
++  registry->RegisterBooleanPref("nickel.vpn.enabled",         false);
++}
++
++void RegisterNickelLocalStatePrefs(PrefRegistrySimple* registry) {
++  // Local-state (browser-wide) Nickel prefs go here.
++  registry->RegisterBooleanPref("nickel.update_check.enabled", true);
++  registry->RegisterStringPref("nickel.installed_version", "");
++}
++
++}  // namespace nickel
+diff --git a/chrome/browser/nickel/nickel_prefs.h b/chrome/browser/nickel/nickel_prefs.h
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/nickel_prefs.h
+@@ -0,0 +1,28 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_prefs.h
++// Declarations for Nickel Browser pref registration.
++
++#ifndef CHROME_BROWSER_NICKEL_NICKEL_PREFS_H_
++#define CHROME_BROWSER_NICKEL_NICKEL_PREFS_H_
++
++#include "components/prefs/pref_registry_simple.h"
++#include "components/sync_preferences/pref_service_syncable.h"
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}
++
++namespace nickel {
++
++// Called from RegisterProfilePrefs() in chrome/browser/prefs/browser_prefs.cc
++void RegisterNickelProfilePrefs(
++    user_prefs::PrefRegistrySyncable* registry);
++
++// Called from RegisterLocalState() in chrome/browser/prefs/browser_prefs.cc
++void RegisterNickelLocalStatePrefs(PrefRegistrySimple* registry);
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_NICKEL_NICKEL_PREFS_H_
+-- 
+2.40.0

@@ -1,0 +1,434 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 05/10] nickel: new-tab-page — custom Nickel NTP WebUI
+
+Add a custom chrome://newtab WebUI for Nickel Browser that shows:
+  - Nickel branding / logo
+  - Privacy stats (ads blocked, trackers blocked today)
+  - Quick-access to Privacy Settings
+  - Search bar (DuckDuckGo by default)
+
+The NTP backend is a new WebUI handler; the frontend is pure HTML/CSS/JS
+under chrome/browser/resources/nickel_ntp/.
+---
+ chrome/browser/nickel/ntp/nickel_ntp_handler.cc | 87 +++++++++++++++++++++++
+ chrome/browser/nickel/ntp/nickel_ntp_handler.h  | 44 ++++++++++++
+ chrome/browser/resources/nickel_ntp/index.html  | 98 +++++++++++++++++++++++
+ chrome/browser/resources/nickel_ntp/nickel_ntp.js | 72 +++++++++++++++++++
+ chrome/browser/resources/nickel_ntp/nickel_ntp.css | 85 ++++++++++++++++++++
+ 5 files changed, 386 insertions(+)
+ create mode 100644 chrome/browser/nickel/ntp/nickel_ntp_handler.cc
+ create mode 100644 chrome/browser/nickel/ntp/nickel_ntp_handler.h
+ create mode 100644 chrome/browser/resources/nickel_ntp/index.html
+ create mode 100644 chrome/browser/resources/nickel_ntp/nickel_ntp.js
+ create mode 100644 chrome/browser/resources/nickel_ntp/nickel_ntp.css
+
+diff --git a/chrome/browser/nickel/ntp/nickel_ntp_handler.cc b/chrome/browser/nickel/ntp/nickel_ntp_handler.cc
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/ntp/nickel_ntp_handler.cc
+@@ -0,0 +1,87 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_ntp_handler.cc
++// WebUI message handler for the Nickel new-tab page.
++
++#include "chrome/browser/nickel/ntp/nickel_ntp_handler.h"
++
++#include "base/bind.h"
++#include "base/values.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/pref_names.h"
++#include "components/prefs/pref_service.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_message_handler.h"
++
++namespace nickel {
++namespace ntp {
++
++NickelNTPHandler::NickelNTPHandler() = default;
++NickelNTPHandler::~NickelNTPHandler() = default;
++
++void NickelNTPHandler::RegisterMessages() {
++  web_ui()->RegisterMessageCallback(
++      "getPrivacyStats",
++      base::BindRepeating(&NickelNTPHandler::HandleGetPrivacyStats,
++                          base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "openSettings",
++      base::BindRepeating(&NickelNTPHandler::HandleOpenSettings,
++                          base::Unretained(this)));
++}
++
++void NickelNTPHandler::HandleGetPrivacyStats(
++    const base::Value::List& args) {
++  Profile* profile = Profile::FromWebUI(web_ui());
++  PrefService* prefs = profile->GetPrefs();
++
++  base::Value::Dict stats;
++  stats.Set("adsBlocked",
++            prefs->GetInteger("nickel.adblock.ads_blocked_today"));
++  stats.Set("trackersBlocked",
++            prefs->GetInteger("nickel.adblock.trackers_blocked_today"));
++  stats.Set("fingerprintAttempts",
++            prefs->GetInteger("nickel.fingerprint.blocked_today"));
++  stats.Set("adblockEnabled",
++            prefs->GetBoolean("nickel.adblock.enabled"));
++  stats.Set("fingerprintEnabled",
++            prefs->GetBoolean("nickel.fingerprint.enabled"));
++  stats.Set("torEnabled",
++            prefs->GetBoolean("nickel.tor.enabled"));
++
++  AllowJavascript();
++  if (args.size() > 0 && args[0].is_string()) {
++    ResolveJavascriptCallback(args[0], std::move(stats));
++  }
++}
++
++void NickelNTPHandler::HandleOpenSettings(
++    const base::Value::List& /*args*/) {
++  web_ui()->GetWebContents()->GetController().LoadURL(
++      GURL("chrome://settings/privacy"),
++      content::Referrer(),
++      ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++      std::string());
++}
++
++}  // namespace ntp
++}  // namespace nickel
+diff --git a/chrome/browser/nickel/ntp/nickel_ntp_handler.h b/chrome/browser/nickel/ntp/nickel_ntp_handler.h
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/ntp/nickel_ntp_handler.h
+@@ -0,0 +1,44 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_ntp_handler.h
++
++#ifndef CHROME_BROWSER_NICKEL_NTP_NICKEL_NTP_HANDLER_H_
++#define CHROME_BROWSER_NICKEL_NTP_NICKEL_NTP_HANDLER_H_
++
++#include "base/values.h"
++#include "content/public/browser/web_ui_message_handler.h"
++
++namespace nickel {
++namespace ntp {
++
++// WebUI message handler for chrome://nickel-newtab.
++// Provides privacy statistics and quick-action callbacks to the NTP JS.
++class NickelNTPHandler : public content::WebUIMessageHandler {
++ public:
++  NickelNTPHandler();
++  ~NickelNTPHandler() override;
++
++  NickelNTPHandler(const NickelNTPHandler&) = delete;
++  NickelNTPHandler& operator=(const NickelNTPHandler&) = delete;
++
++  // WebUIMessageHandler:
++  void RegisterMessages() override;
++
++ private:
++  // Sends today's ad-block / fingerprint stats to the NTP JS.
++  void HandleGetPrivacyStats(const base::Value::List& args);
++
++  // Navigates to chrome://settings/privacy.
++  void HandleOpenSettings(const base::Value::List& args);
++};
++
++}  // namespace ntp
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_NICKEL_NTP_NICKEL_NTP_HANDLER_H_
+diff --git a/chrome/browser/resources/nickel_ntp/index.html b/chrome/browser/resources/nickel_ntp/index.html
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/resources/nickel_ntp/index.html
+@@ -0,0 +1,98 @@
++<!DOCTYPE html>
++<!--
++  Nickel Browser — Custom New Tab Page
++  Copyright (c) 2026 Nickel Browser Project
++  BSD-3-Clause License
++-->
++<html lang="en">
++<head>
++  <meta charset="UTF-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
++  <title>New Tab</title>
++  <link rel="stylesheet" href="nickel_ntp.css">
++</head>
++<body>
++  <div class="ntp-container">
++    <!-- Header: Branding -->
++    <header class="ntp-header">
++      <div class="ntp-logo" aria-label="Nickel Browser">
++        <!-- SVG coin/tiger icon placeholder; replaced at build time by branding patch -->
++        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"
++             width="64" height="64" aria-hidden="true">
++          <circle cx="32" cy="32" r="30" fill="#FF4500" stroke="#fff" stroke-width="2"/>
++          <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle"
++                font-size="26" font-weight="bold" fill="#fff">N</text>
++        </svg>
++      </div>
++      <h1 class="ntp-title">Nickel Browser</h1>
++      <p class="ntp-subtitle">Block Everything. Leak Nothing. Own Your Web.</p>
++    </header>
++
++    <!-- Search Bar -->
++    <section class="ntp-search" role="search" aria-label="Search the web">
++      <form id="search-form" action="https://duckduckgo.com/" method="GET">
++        <input type="hidden" name="t" value="nickel">
++        <div class="search-input-wrapper">
++          <input type="search"
++                 name="q"
++                 id="search-input"
++                 placeholder="Search with DuckDuckGo…"
++                 autocomplete="off"
++                 autofocus
++                 aria-label="Search query">
++          <button type="submit" aria-label="Search">
++            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
++                 width="20" height="20" aria-hidden="true">
++              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
++              <line x1="16.5" y1="16.5" x2="22" y2="22"
++                    stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
++            </svg>
++          </button>
++        </div>
++      </form>
++    </section>
++
++    <!-- Privacy Stats -->
++    <section class="ntp-stats" aria-label="Today's privacy statistics">
++      <h2 class="sr-only">Privacy Statistics</h2>
++      <div class="stat-card" id="stat-ads">
++        <span class="stat-number" id="ads-blocked">—</span>
++        <span class="stat-label">Ads blocked today</span>
++      </div>
++      <div class="stat-card" id="stat-trackers">
++        <span class="stat-number" id="trackers-blocked">—</span>
++        <span class="stat-label">Trackers blocked</span>
++      </div>
++      <div class="stat-card" id="stat-fingerprint">
++        <span class="stat-number" id="fingerprint-blocked">—</span>
++        <span class="stat-label">Fingerprint attempts</span>
++      </div>
++    </section>
++
++    <!-- Quick Actions -->
++    <nav class="ntp-actions" aria-label="Quick actions">
++      <button class="action-btn" id="btn-settings" type="button">
++        ⚙️ Privacy Settings
++      </button>
++      <button class="action-btn" id="btn-tor" type="button">
++        🧅 New Tor Tab
++      </button>
++    </nav>
++  </div>
++
++  <script src="nickel_ntp.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/nickel_ntp/nickel_ntp.js b/chrome/browser/resources/nickel_ntp/nickel_ntp.js
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/resources/nickel_ntp/nickel_ntp.js
+@@ -0,0 +1,72 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_ntp.js — Nickel Browser new-tab page script.
++// Communicates with NickelNTPHandler via chrome.send / cr.sendWithPromise.
++
++'use strict';
++
++(function() {
++
++/**
++ * Request privacy stats from the browser and update the stat cards.
++ */
++function loadPrivacyStats() {
++  // cr.sendWithPromise is the standard Chrome WebUI IPC mechanism.
++  if (typeof cr !== 'undefined' && cr.sendWithPromise) {
++    cr.sendWithPromise('getPrivacyStats')
++      .then(function(stats) {
++        updateStatCard('ads-blocked',         stats.adsBlocked);
++        updateStatCard('trackers-blocked',     stats.trackersBlocked);
++        updateStatCard('fingerprint-blocked',  stats.fingerprintAttempts);
++      })
++      .catch(function(err) {
++        console.warn('Nickel NTP: could not load stats:', err);
++      });
++  } else {
++    // Fallback when running outside the browser (e.g., during development).
++    updateStatCard('ads-blocked',        0);
++    updateStatCard('trackers-blocked',   0);
++    updateStatCard('fingerprint-blocked',0);
++  }
++}
++
++/**
++ * Update a stat card's number display.
++ * @param {string} id - Element id.
++ * @param {number} value - Stat value.
++ */
++function updateStatCard(id, value) {
++  var el = document.getElementById(id);
++  if (el) {
++    el.textContent = (typeof value === 'number') ? value.toLocaleString() : '0';
++  }
++}
++
++/**
++ * Wire up quick-action buttons.
++ */
++function initButtons() {
++  var settingsBtn = document.getElementById('btn-settings');
++  if (settingsBtn) {
++    settingsBtn.addEventListener('click', function() {
++      if (typeof chrome !== 'undefined' && chrome.send) {
++        chrome.send('openSettings');
++      } else {
++        window.location.href = 'chrome://settings/privacy';
++      }
++    });
++  }
++
++  var torBtn = document.getElementById('btn-tor');
++  if (torBtn) {
++    torBtn.addEventListener('click', function() {
++      // Opens a new Tor private tab. Handled by NickelTorController.
++      if (typeof chrome !== 'undefined' && chrome.send) {
++        chrome.send('openTorTab');
++      }
++    });
++  }
++}
++
++document.addEventListener('DOMContentLoaded', function() {
++  loadPrivacyStats();
++  initButtons();
++});
++
++})();
+diff --git a/chrome/browser/resources/nickel_ntp/nickel_ntp.css b/chrome/browser/resources/nickel_ntp/nickel_ntp.css
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/resources/nickel_ntp/nickel_ntp.css
+@@ -0,0 +1,85 @@
++/* Copyright (c) 2026 Nickel Browser Project */
++/* nickel_ntp.css — Nickel Browser new-tab page styles */
++
++:root {
++  --nickel-primary:   #FF4500;
++  --nickel-bg:        #1a1a2e;
++  --nickel-surface:   #16213e;
++  --nickel-text:      #e0e0e0;
++  --nickel-accent:    #00d4aa;
++  --nickel-muted:     rgba(255,255,255,0.5);
++}
++
++*, *::before, *::after { box-sizing: border-box; }
++
++body {
++  margin: 0;
++  background: var(--nickel-bg);
++  color: var(--nickel-text);
++  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
++}
++
++.sr-only {
++  position: absolute; width: 1px; height: 1px;
++  padding: 0; margin: -1px; overflow: hidden;
++  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
++}
++
++.ntp-container {
++  max-width: 680px;
++  margin: 0 auto;
++  padding: 60px 24px 40px;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 40px;
++}
++
++.ntp-header { text-align: center; }
++.ntp-title  { font-size: 2.2rem; font-weight: 700; margin: 12px 0 4px; }
++.ntp-subtitle { color: var(--nickel-muted); font-size: 1rem; margin: 0; }
++
++.ntp-search { width: 100%; }
++.search-input-wrapper {
++  display: flex;
++  background: var(--nickel-surface);
++  border: 1px solid rgba(255,255,255,0.1);
++  border-radius: 28px;
++  overflow: hidden;
++  transition: border-color 0.2s;
++}
++.search-input-wrapper:focus-within { border-color: var(--nickel-accent); }
++
++#search-input {
++  flex: 1;
++  background: transparent;
++  border: none;
++  padding: 14px 20px;
++  color: var(--nickel-text);
++  font-size: 1rem;
++  outline: none;
++}
++#search-input::placeholder { color: var(--nickel-muted); }
++
++.search-input-wrapper button {
++  background: transparent;
++  border: none;
++  padding: 0 20px;
++  color: var(--nickel-muted);
++  cursor: pointer;
++  display: flex;
++  align-items: center;
++  transition: color 0.2s;
++}
++.search-input-wrapper button:hover { color: var(--nickel-accent); }
++
++.ntp-stats {
++  display: flex;
++  gap: 20px;
++  width: 100%;
++  justify-content: center;
++}
++.stat-card {
++  background: var(--nickel-surface);
++  border-radius: 12px;
++  padding: 20px 24px;
++  text-align: center;
++  flex: 1;
++}
++.stat-number { display: block; font-size: 2rem; font-weight: 700; color: var(--nickel-accent); }
++.stat-label  { font-size: 0.8rem; color: var(--nickel-muted); margin-top: 4px; display: block; }
++
++.ntp-actions { display: flex; gap: 16px; }
++.action-btn {
++  background: var(--nickel-surface);
++  border: 1px solid rgba(255,255,255,0.1);
++  border-radius: 8px;
++  color: var(--nickel-text);
++  cursor: pointer;
++  font-size: 0.95rem;
++  padding: 10px 20px;
++  transition: background 0.2s, border-color 0.2s;
++}
++.action-btn:hover {
++  background: var(--nickel-primary);
++  border-color: var(--nickel-primary);
++  color: #fff;
++}
+-- 
+2.40.0

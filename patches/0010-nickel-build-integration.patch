@@ -1,0 +1,230 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 10/10] nickel: build-integration — wire Nickel components into BUILD.gn
+
+Add BUILD.gn files for each Nickel component directory and hook them
+into chrome/browser/BUILD.gn and chrome/renderer/BUILD.gn so the
+Nickel source files are compiled as part of the browser build.
+
+Each component has its own BUILD.gn target so individual features can
+be gated by the NICKEL_* GN flags.
+---
+ chrome/browser/nickel/BUILD.gn                     | 72 ++++++++++++++++++++
+ chrome/browser/nickel/adblock/BUILD.gn             | 38 +++++++++++
+ chrome/browser/nickel/fingerprint/BUILD.gn         | 28 ++++++++
+ chrome/browser/nickel/ntp/BUILD.gn                 | 28 ++++++++
+ chrome/browser/nickel/tor/BUILD.gn                 | 32 +++++++++
+ chrome/browser/nickel/vpn/BUILD.gn                 | 28 ++++++++
+ chrome/renderer/nickel/BUILD.gn                    | 30 +++++++++
+ 7 files changed, 256 insertions(+)
+ create mode 100644 chrome/browser/nickel/BUILD.gn
+ create mode 100644 chrome/browser/nickel/adblock/BUILD.gn
+ create mode 100644 chrome/browser/nickel/fingerprint/BUILD.gn
+ create mode 100644 chrome/browser/nickel/ntp/BUILD.gn
+ create mode 100644 chrome/browser/nickel/tor/BUILD.gn
+ create mode 100644 chrome/browser/nickel/vpn/BUILD.gn
+ create mode 100644 chrome/renderer/nickel/BUILD.gn
+
+diff --git a/chrome/browser/nickel/BUILD.gn b/chrome/browser/nickel/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/BUILD.gn
+@@ -0,0 +1,72 @@
++# Copyright (c) 2026 Nickel Browser Project
++# Use of this source code is governed by a BSD-3-Clause license.
++#
++# chrome/browser/nickel/BUILD.gn
++# Top-level Nickel browser component.  Pulls in all sub-components.
++
++import("//build/buildflag_header.gni")
++import("//build/config/features.gni")
++
++source_set("nickel_browser") {
++  sources = [
++    "nickel_prefs.cc",
++    "nickel_prefs.h",
++    "nickel_webrtc.cc",
++    "nickel_webrtc.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/common",
++    "//chrome/common:non_code_constants",
++    "//components/content_settings/core/common",
++    "//components/prefs",
++    "//components/search_engines",
++    "//components/sync_preferences",
++    "//content/public/common",
++
++    # Sub-components
++    "adblock:nickel_adblock",
++    "fingerprint:nickel_fingerprint",
++    "ntp:nickel_ntp",
++    "tor:nickel_tor",
++    "vpn:nickel_vpn",
++  ]
++
++  # Only compile Nickel code when the NICKEL_BROWSER define is set.
++  defines = [ "NICKEL_BROWSER=1" ]
++
++  # Allow Nickel code to include Chromium internal headers.
++  visibility = [
++    "//chrome/browser/*",
++    "//chrome/renderer/*",
++  ]
++}
++
++# Alias used by chrome/browser/BUILD.gn
++group("nickel") {
++  public_deps = [ ":nickel_browser" ]
++}
+diff --git a/chrome/browser/nickel/adblock/BUILD.gn b/chrome/browser/nickel/adblock/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/adblock/BUILD.gn
+@@ -0,0 +1,38 @@
++# chrome/browser/nickel/adblock/BUILD.gn
++
++source_set("nickel_adblock") {
++  sources = [
++    "nickel_adblock_engine.cc",
++    "nickel_adblock_engine.h",
++    "nickel_adblock_service.cc",
++    "nickel_adblock_service.h",
++    "nickel_adblock_throttle.cc",
++    "nickel_adblock_throttle.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/common",
++    "//net",
++    "//net/base/registry_controlled_domains",
++    "//services/network/public/cpp",
++    "//services/network/public/mojom",
++    "//third_party/blink/public/common",
++    "//url",
++  ]
++
++  defines = [ "NICKEL_ADBLOCK_ENABLED=1" ]
++}
+diff --git a/chrome/browser/nickel/fingerprint/BUILD.gn b/chrome/browser/nickel/fingerprint/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/fingerprint/BUILD.gn
+@@ -0,0 +1,28 @@
++# chrome/browser/nickel/fingerprint/BUILD.gn
++
++source_set("nickel_fingerprint") {
++  sources = [
++    "nickel_fingerprint_service.cc",
++    "nickel_fingerprint_service.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/profiles",
++    "//components/keyed_service/core",
++    "//components/prefs",
++  ]
++
++  defines = [ "NICKEL_FINGERPRINT_PROTECTION=1" ]
++}
+diff --git a/chrome/browser/nickel/ntp/BUILD.gn b/chrome/browser/nickel/ntp/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/ntp/BUILD.gn
+@@ -0,0 +1,28 @@
++# chrome/browser/nickel/ntp/BUILD.gn
++
++source_set("nickel_ntp") {
++  sources = [
++    "nickel_ntp_handler.cc",
++    "nickel_ntp_handler.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/profiles",
++    "//chrome/common",
++    "//components/prefs",
++    "//content/public/browser",
++  ]
++}
+diff --git a/chrome/browser/nickel/tor/BUILD.gn b/chrome/browser/nickel/tor/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/tor/BUILD.gn
+@@ -0,0 +1,32 @@
++# chrome/browser/nickel/tor/BUILD.gn
++
++source_set("nickel_tor") {
++  sources = [
++    "nickel_tor_controller.cc",
++    "nickel_tor_controller.h",
++    "nickel_tor_tab_helper.cc",
++    "nickel_tor_tab_helper.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/profiles",
++    "//chrome/common",
++    "//content/public/browser",
++    "//net",
++  ]
++
++  defines = [ "NICKEL_TOR_INTEGRATION=1" ]
++}
+diff --git a/chrome/browser/nickel/vpn/BUILD.gn b/chrome/browser/nickel/vpn/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/vpn/BUILD.gn
+@@ -0,0 +1,28 @@
++# chrome/browser/nickel/vpn/BUILD.gn
++
++source_set("nickel_vpn") {
++  sources = [
++    "nickel_vpn_service.cc",
++    "nickel_vpn_service.h",
++  ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/profiles",
++    "//components/keyed_service/core",
++    "//net",
++  ]
++}
+diff --git a/chrome/renderer/nickel/BUILD.gn b/chrome/renderer/nickel/BUILD.gn
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/renderer/nickel/BUILD.gn
+@@ -0,0 +1,30 @@
++# chrome/renderer/nickel/BUILD.gn
++
++source_set("nickel_renderer") {
++  sources = [
++    "nickel_fingerprint_shield.cc",
++    "nickel_fingerprint_shield.h",
++  ]
++
++  deps = [
++    "//base",
++    "//content/public/renderer",
++    "//third_party/blink/public/web",
++    "//v8",
++  ]
++
++  defines = [ "NICKEL_FINGERPRINT_PROTECTION=1" ]
++}
+-- 
+2.40.0

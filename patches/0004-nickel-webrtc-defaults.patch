@@ -1,0 +1,111 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 04/10] nickel: webrtc-defaults — harden WebRTC IP handling
+
+Force WebRTC to use disable_non_proxied_udp by default so that the
+local and VPN/TURN-only IP addresses are never exposed to web pages.
+
+Users can relax this in Settings → Privacy → WebRTC if needed for
+video conferencing.  ungoogled-chromium already disables WebRTC
+non-proxied UDP at the command-line flag level; this patch makes it
+a profile pref so it survives across sessions and is visible in the UI.
+
+Also registers a Nickel-specific pref "nickel.webrtc.policy" that the
+Settings UI (added by a later patch) exposes to the user.
+---
+ chrome/browser/nickel/nickel_webrtc.cc | 55 +++++++++++++++++++++++++++
+ chrome/browser/nickel/nickel_webrtc.h  | 28 ++++++++++++++
+ 2 files changed, 83 insertions(+)
+ create mode 100644 chrome/browser/nickel/nickel_webrtc.cc
+ create mode 100644 chrome/browser/nickel/nickel_webrtc.h
+
+diff --git a/chrome/browser/nickel/nickel_webrtc.cc b/chrome/browser/nickel/nickel_webrtc.cc
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/nickel_webrtc.cc
+@@ -0,0 +1,55 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_webrtc.cc
++// Configures WebRTC IP handling policy for Nickel Browser.
++
++#include "chrome/browser/nickel/nickel_webrtc.h"
++
++#include "base/values.h"
++#include "chrome/common/pref_names.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/sync_preferences/pref_service_syncable.h"
++
++namespace nickel {
++
++// WebRTC IP handling policy values (matches Chrome's enum):
++//   "default"                          — expose local + public IP
++//   "default_public_and_private_interfaces" — expose both interfaces
++//   "default_public_interface_only"    — expose only public IP
++//   "disable_non_proxied_udp"          — relay-only; hides local IP ← Nickel default
++constexpr char kWebRTCPolicyDefault[] = "disable_non_proxied_udp";
++
++void RegisterNickelWebRTCPrefs(
++    user_prefs::PrefRegistrySyncable* registry) {
++  // Override Chromium's built-in WebRTC IP handling pref default.
++  // "disable_non_proxied_udp" means only TURN relay candidates are
++  // surfaced — the local LAN IP is never exposed to JavaScript.
++  registry->SetDefaultPrefValue(
++      prefs::kWebRTCIPHandlingPolicy,
++      base::Value(kWebRTCPolicyDefault));
++
++  // Nickel-specific: store user's desired policy so the Settings UI can
++  // present the current choice and let the user change it.
++  registry->RegisterStringPref(
++      "nickel.webrtc.policy",
++      kWebRTCPolicyDefault,
++      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++}
++
++void ApplyNickelWebRTCPolicy(PrefService* prefs) {
++  if (!prefs)
++    return;
++  const std::string policy =
++      prefs->GetString("nickel.webrtc.policy");
++  prefs->SetString(prefs::kWebRTCIPHandlingPolicy, policy);
++}
++
++}  // namespace nickel
+diff --git a/chrome/browser/nickel/nickel_webrtc.h b/chrome/browser/nickel/nickel_webrtc.h
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/chrome/browser/nickel/nickel_webrtc.h
+@@ -0,0 +1,28 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// nickel_webrtc.h
++
++#ifndef CHROME_BROWSER_NICKEL_NICKEL_WEBRTC_H_
++#define CHROME_BROWSER_NICKEL_NICKEL_WEBRTC_H_
++
++#include "components/prefs/pref_service.h"
++#include "components/sync_preferences/pref_service_syncable.h"
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}
++
++namespace nickel {
++
++// Register WebRTC-related prefs with hardened defaults.
++// Call from RegisterNickelProfilePrefs().
++void RegisterNickelWebRTCPrefs(
++    user_prefs::PrefRegistrySyncable* registry);
++
++// Synchronise the Chromium WebRTC pref from nickel.webrtc.policy.
++void ApplyNickelWebRTCPolicy(PrefService* prefs);
++
++}  // namespace nickel
++
++#endif  // CHROME_BROWSER_NICKEL_NICKEL_WEBRTC_H_
+-- 
+2.40.0

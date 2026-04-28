@@ -1,0 +1,657 @@
+name: 🛡️ Nickel Browser — Source Build (Linux)
+
+# ============================================================================
+# NICKEL BROWSER SOURCE BUILD — OPTION A (BRAVE-STYLE)
+# ============================================================================
+#
+# Overview
+# --------
+# This workflow builds Nickel Browser from the actual Chromium/ungoogled-chromium
+# source tree — the same approach used by Brave, Vivaldi, and ungoogled-chromium.
+#
+# Pipeline
+# --------
+#   1. Clone ungoogled-chromium at the pinned version tag
+#   2. Run gclient sync (downloads ~30 GB Chromium source)
+#   3. Apply ungoogled-chromium's own patches
+#   4. Apply Nickel's additional patches (patches/series)
+#   5. Generate build with gn + Nickel's GN args
+#   6. Compile with ninja
+#   7. Package .deb (Debian/Ubuntu) and .tar.xz (portable)
+#   8. Upload as GitHub release artifacts
+#
+# Hardware Requirements
+# ---------------------
+# Chromium builds require:
+#   • Disk  : 100+ GB free (source ~30 GB, build ~60 GB)
+#   • RAM   : 16 GB minimum; 32–64 GB recommended
+#   • CPU   : 8+ cores strongly recommended
+#   • Time  : 3–8 hours depending on core count
+#
+# Recommended Runners (set NICKEL_RUNNER secret or edit `runs-on` below):
+#   • GitHub Large Runner : ubuntu-22.04-32-core (paid)
+#   • Self-Hosted         : label "nickel-builder" (see docs/SELF_HOSTED_RUNNER.md)
+#   • Fallback            : ubuntu-22.04 (standard; may OOM on linking)
+#
+# ============================================================================
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      uc_version:
+        description: 'ungoogled-chromium version tag (e.g. 146.0.7680.177-1)'
+        required: false
+        default: ''
+      build_type:
+        description: 'Build type'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      skip_patch_check:
+        description: 'Skip patch apply check (for workflow testing only)'
+        required: false
+        default: 'false'
+        type: boolean
+      jobs:
+        description: 'Ninja parallel jobs (0 = auto)'
+        required: false
+        default: '0'
+
+# Only one source build at a time (they are very resource-intensive)
+concurrency:
+  group: nickel-source-build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: read
+  id-token: write
+
+env:
+  # Pinned UC version — update this when tracking a new Chromium release
+  DEFAULT_UC_VERSION: '146.0.7680.177-1'
+  NICKEL_VERSION: '1.0.0-alpha'
+  # ungoogled-chromium upstream repo
+  UC_REPO: 'https://github.com/ungoogled-software/ungoogled-chromium.git'
+  # depot_tools location
+  DEPOT_TOOLS_DIR: '/opt/depot_tools'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ==========================================================================
+  # JOB 1: VALIDATE — Dry-run patch check (fast, cheap runner)
+  # ==========================================================================
+  validate-patches:
+    name: 🔍 Validate Patches
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      uc_version: ${{ steps.resolve.outputs.uc_version }}
+      chromium_version: ${{ steps.resolve.outputs.chromium_version }}
+      nickel_version: ${{ steps.resolve.outputs.nickel_version }}
+
+    steps:
+      - name: 📥 Checkout Nickel
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: 🔢 Resolve Versions
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          # Prefer manual input → tag → default pinned version
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            # Tags look like v1.0.0-alpha; strip the v prefix
+            TAG="${GITHUB_REF#refs/tags/v}"
+            NICKEL_VER="$TAG"
+          else
+            NICKEL_VER="${{ env.NICKEL_VERSION }}"
+          fi
+
+          UC_VER="${{ github.event.inputs.uc_version }}"
+          if [[ -z "$UC_VER" ]]; then
+            UC_VER="$(cat .chromium_version 2>/dev/null || echo '')"
+          fi
+          if [[ -z "$UC_VER" ]]; then
+            UC_VER="${{ env.DEFAULT_UC_VERSION }}"
+          fi
+
+          # chromium_version is UC version without the trailing -N suffix
+          CHROMIUM_VER="${UC_VER%-*}"
+
+          echo "uc_version=$UC_VER"         >> "$GITHUB_OUTPUT"
+          echo "chromium_version=$CHROMIUM_VER" >> "$GITHUB_OUTPUT"
+          echo "nickel_version=$NICKEL_VER" >> "$GITHUB_OUTPUT"
+
+          echo "📌 ungoogled-chromium version : $UC_VER"
+          echo "📌 Chromium version           : $CHROMIUM_VER"
+          echo "📌 Nickel version             : $NICKEL_VER"
+
+      - name: 🛠️ Install Patch Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends patch diffutils
+
+      - name: 📋 Lint Patch Series
+        if: github.event.inputs.skip_patch_check != 'true'
+        run: |
+          set -euo pipefail
+
+          SERIES="patches/series"
+          if [[ ! -f "$SERIES" ]]; then
+            echo "❌ patches/series file not found"
+            exit 1
+          fi
+
+          echo "📋 Patch series:"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip blank lines and comments
+            [[ -z "$line" || "$line" == \#* ]] && continue
+            PATCH="patches/$line"
+            if [[ ! -f "$PATCH" ]]; then
+              echo "  ❌ MISSING: $PATCH"
+              exit 1
+            fi
+            # Basic format check: every patch must start with a git From/diff header.
+            # Accepts:
+            #   "From <hash> ..." (git format-patch)
+            #   "From: <author>" (git am email-style, used by Nickel)
+            #   "diff --git ..."  (raw diff)
+            if ! head -1 "$PATCH" | grep -qE '^(From[ :]|diff --git)'; then
+              echo "  ❌ BAD FORMAT: $PATCH (must start with 'From ', 'From:', or 'diff --git')"
+              exit 1
+            fi
+            echo "  ✅ $line"
+          done < "$SERIES"
+
+  # ==========================================================================
+  # JOB 2: BUILD — Actual Chromium source compile (large runner required)
+  # ==========================================================================
+  build-linux:
+    name: 🐧 Build Linux (x64) from Source
+    needs: validate-patches
+    # -----------------------------------------------------------------------
+    # RUNNER NOTE
+    # -----------------------------------------------------------------------
+    # Standard GitHub-hosted ubuntu-22.04 runners have ~14 GB RAM and 84 GB
+    # disk — not enough for a full Chromium build.
+    #
+    # Choose one of:
+    #  A) Large GitHub runner (paid): change to ubuntu-22.04-32-core
+    #  B) Self-hosted runner:         add label "nickel-builder" and use
+    #                                 [self-hosted, linux, x64, nickel-builder]
+    #  C) For testing only (may OOM): keep ubuntu-22.04 (uses swap)
+    # -----------------------------------------------------------------------
+    runs-on: ubuntu-22.04
+    timeout-minutes: 480   # 8 hours
+
+    env:
+      UC_VERSION:      ${{ needs.validate-patches.outputs.uc_version }}
+      CHROMIUM_VERSION: ${{ needs.validate-patches.outputs.chromium_version }}
+      NICKEL_VERSION:  ${{ needs.validate-patches.outputs.nickel_version }}
+      BUILD_TYPE:      ${{ github.event.inputs.build_type || 'release' }}
+      NINJA_JOBS:      ${{ github.event.inputs.jobs || '0' }}
+      # Source tree layout
+      NICKEL_DIR:      ${{ github.workspace }}
+      UC_DIR:          ${{ github.workspace }}/ungoogled-chromium
+      SRC_DIR:         ${{ github.workspace }}/ungoogled-chromium/chromium
+      OUT_DIR:         ${{ github.workspace }}/ungoogled-chromium/chromium/out/Nickel
+
+    steps:
+      # ---- Checkout ---------------------------------------------------------
+      - name: 📥 Checkout Nickel
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # ---- Disk Space -------------------------------------------------------
+      - name: 💽 Maximize Disk Space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 16384    # 16 GB for OS, tools, depot_tools
+          swap-size-mb:    8192     # 8 GB swap (helps during linking)
+          remove-dotnet:   'true'
+          remove-android:  'true'
+          remove-haskell:  'true'
+          remove-codeql:   'true'
+          remove-docker-images: 'true'
+
+      - name: 🔎 Check Available Disk
+        run: df -h
+
+      # ---- System Dependencies ----------------------------------------------
+      - name: 🛠️ Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip git curl wget \
+            build-essential clang lld \
+            pkg-config binutils \
+            ninja-build \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libpulse-dev \
+            libasound2-dev \
+            libdbus-1-dev \
+            libx11-dev libxcomposite-dev libxdamage-dev libxext-dev \
+            libxfixes-dev libxi-dev libxrandr-dev libxss-dev libxtst-dev \
+            libatk1.0-dev \
+            libcups2-dev \
+            libdrm-dev \
+            mesa-common-dev libgbm-dev \
+            libssl-dev \
+            libnss3-dev \
+            libffi-dev \
+            gperf bison flex \
+            dpkg-dev fakeroot \
+            xz-utils tar \
+            jq \
+            elfutils
+
+      # ---- depot_tools -------------------------------------------------------
+      - name: 🔧 Cache depot_tools
+        uses: actions/cache@v4
+        id: depot-cache
+        with:
+          path: ${{ env.DEPOT_TOOLS_DIR }}
+          key: depot-tools-2024
+
+      - name: 🔧 Install depot_tools
+        if: steps.depot-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth=1 \
+            https://chromium.googlesource.com/chromium/tools/depot_tools.git \
+            "$DEPOT_TOOLS_DIR"
+
+      - name: 🔧 Add depot_tools to PATH
+        run: echo "$DEPOT_TOOLS_DIR" >> "$GITHUB_PATH"
+
+      # ---- ungoogled-chromium -----------------------------------------------
+      - name: 📦 Clone ungoogled-chromium
+        run: |
+          git clone --depth=1 --branch "$UC_VERSION" \
+            "$UC_REPO" "$UC_DIR"
+          echo "✅ Cloned ungoogled-chromium $UC_VERSION"
+
+      # ---- Chromium Source --------------------------------------------------
+      # Cache key: UC version (source rarely changes for a fixed UC version)
+      - name: 💾 Cache Chromium Source
+        uses: actions/cache@v4
+        id: src-cache
+        with:
+          path: ${{ env.SRC_DIR }}
+          key: chromium-src-${{ env.CHROMIUM_VERSION }}
+
+      - name: 📥 Fetch Chromium Source (gclient sync)
+        if: steps.src-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ env.UC_DIR }}
+        run: |
+          set -euo pipefail
+
+          # ungoogled-chromium provides a domain substitution list and a
+          # DEPS file that works with gclient.  Their utils/fetch_sync.py
+          # wraps the full gclient sync call.
+          echo "📡 Fetching Chromium $CHROMIUM_VERSION source (~30 GB)..."
+
+          # Configure git for large repos
+          git config --global core.compression 0
+          git config --global http.postBuffer 2097152000
+
+          # Run UC's sync helper (this calls `gclient sync` internally)
+          python3 utils/fetch_sync.py \
+            --chromium-version "$CHROMIUM_VERSION" \
+            --output-directory chromium
+
+          echo "✅ Chromium source fetched"
+          df -h
+
+      # ---- Apply Patches ----------------------------------------------------
+      - name: 🔧 Apply ungoogled-chromium Patches
+        working-directory: ${{ env.UC_DIR }}
+        run: |
+          set -euo pipefail
+          echo "🔧 Applying ungoogled-chromium patches..."
+          python3 utils/patches/apply_patches.py chromium patches/
+          echo "✅ ungoogled-chromium patches applied"
+
+      - name: 🪙 Apply Nickel Patches
+        working-directory: ${{ env.SRC_DIR }}
+        run: |
+          set -euo pipefail
+
+          SERIES="${NICKEL_DIR}/patches/series"
+          PATCH_DIR="${NICKEL_DIR}/patches"
+
+          echo "🪙 Applying Nickel patches..."
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" || "$line" == \#* ]] && continue
+            PATCH="${PATCH_DIR}/${line}"
+            echo "  → Applying $line"
+            git apply \
+              --ignore-whitespace \
+              --whitespace=nowarn \
+              "$PATCH"
+          done < "$SERIES"
+
+          echo "✅ All Nickel patches applied"
+
+      # ---- GN Configuration -------------------------------------------------
+      - name: ⚙️ Generate GN Build Config
+        working-directory: ${{ env.UC_DIR }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$OUT_DIR"
+
+          # Start with ungoogled-chromium's curated GN args
+          python3 utils/gn_args.py > "$OUT_DIR/args.gn"
+
+          # Append Nickel-specific overrides
+          cat >> "$OUT_DIR/args.gn" << 'NICKEL_ARGS'
+
+          # ==========================================================
+          # Nickel Browser build overrides
+          # ==========================================================
+
+          # Build type
+          is_official_build = true
+          is_debug = false
+          symbol_level = 0
+          blink_symbol_level = 0
+
+          # Disable proprietary codecs (use open alternatives)
+          # Uncomment to enable H.264/AAC:
+          # proprietary_codecs = true
+          # ffmpeg_branding = "Chrome"
+
+          # Disable nacl + widevine (DRM-free)
+          enable_nacl = false
+          enable_widevine = false
+
+          # Disable field trials / experiments
+          fieldtrial_testing_like_official_build = true
+
+          # Nickel feature flags (map to preprocessor defines in C++)
+          defines = [
+            "NICKEL_BROWSER=1",
+            "NICKEL_ADBLOCK_ENABLED=1",
+            "NICKEL_FINGERPRINT_PROTECTION=1",
+            "NICKEL_TOR_INTEGRATION=1",
+          ]
+          NICKEL_ARGS
+
+          # Override job count if specified
+          if [[ "$NINJA_JOBS" != "0" ]]; then
+            echo "Ninja jobs overridden to: $NINJA_JOBS"
+          fi
+
+          echo "✅ GN args written:"
+          cat "$OUT_DIR/args.gn"
+
+      - name: ⚙️ Run gn gen
+        working-directory: ${{ env.SRC_DIR }}
+        run: |
+          gn gen "$OUT_DIR"
+          echo "✅ gn gen complete"
+
+      # ---- Compile ----------------------------------------------------------
+      - name: 🔨 Build with ninja
+        working-directory: ${{ env.SRC_DIR }}
+        run: |
+          set -euo pipefail
+
+          # Determine job count:
+          # - If user specified, use that
+          # - Otherwise auto: (nproc * 2) capped to avoid OOM during linking
+          if [[ "$NINJA_JOBS" == "0" ]]; then
+            CPUS=$(nproc)
+            JOBS=$(( CPUS < 8 ? CPUS : 8 ))
+            echo "🔨 Auto ninja jobs: $JOBS (nproc=$CPUS)"
+          else
+            JOBS="$NINJA_JOBS"
+            echo "🔨 Manual ninja jobs: $JOBS"
+          fi
+
+          # Build the browser, sandbox, and chromedriver
+          ninja -C "$OUT_DIR" -j "$JOBS" \
+            chrome \
+            chrome_sandbox \
+            chromedriver
+
+          echo "✅ Build complete"
+          ls -lh "$OUT_DIR/chrome" "$OUT_DIR/chrome_sandbox" 2>/dev/null || true
+
+      # ---- Packaging --------------------------------------------------------
+      - name: 📦 Create .deb Package
+        run: |
+          set -euo pipefail
+
+          STAGING=$(mktemp -d)
+          PKG_ROOT="$STAGING/nickel-browser"
+
+          # Directories
+          install -d "$PKG_ROOT/DEBIAN"
+          install -d "$PKG_ROOT/opt/nickel-browser"
+          install -d "$PKG_ROOT/usr/bin"
+          install -d "$PKG_ROOT/usr/share/applications"
+          install -d "$PKG_ROOT/usr/share/icons/hicolor/256x256/apps"
+          install -d "$PKG_ROOT/usr/share/icons/hicolor/128x128/apps"
+          install -d "$PKG_ROOT/usr/share/icons/hicolor/32x32/apps"
+
+          # Copy build output
+          echo "📋 Copying build output..."
+          cp "$OUT_DIR/chrome"           "$PKG_ROOT/opt/nickel-browser/nickel-browser"
+          cp "$OUT_DIR/chrome_sandbox"   "$PKG_ROOT/opt/nickel-browser/chrome-sandbox"
+          chmod 4755                     "$PKG_ROOT/opt/nickel-browser/chrome-sandbox"
+
+          # Copy supporting files (icudtl.dat, resources.pak, etc.)
+          for f in icudtl.dat resources.pak \
+                   chrome_100_percent.pak chrome_200_percent.pak \
+                   snapshot_blob.bin v8_context_snapshot.bin \
+                   libEGL.so libGLESv2.so; do
+            [[ -f "$OUT_DIR/$f" ]] && cp "$OUT_DIR/$f" "$PKG_ROOT/opt/nickel-browser/"
+          done
+          # Locales
+          if [[ -d "$OUT_DIR/locales" ]]; then
+            cp -r "$OUT_DIR/locales" "$PKG_ROOT/opt/nickel-browser/"
+          fi
+
+          # Symlink
+          ln -sf /opt/nickel-browser/nickel-browser "$PKG_ROOT/usr/bin/nickel-browser"
+
+          # Icons
+          for SIZE in 32 128 256; do
+            ICON="${NICKEL_DIR}/src/nickel/branding/product_logo_${SIZE}.png"
+            if [[ -f "$ICON" ]]; then
+              cp "$ICON" "$PKG_ROOT/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps/nickel-browser.png"
+            fi
+          done
+
+          # Desktop entry
+          cat > "$PKG_ROOT/usr/share/applications/nickel-browser.desktop" << 'DESKTOP'
+          [Desktop Entry]
+          Version=1.0
+          Name=Nickel Browser
+          GenericName=Web Browser
+          Comment=Block Everything. Leak Nothing. Own Your Web.
+          Exec=/opt/nickel-browser/nickel-browser %U
+          Icon=nickel-browser
+          Type=Application
+          Categories=Network;WebBrowser;
+          MimeType=text/html;text/xml;application/xhtml_xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/nickel;
+          StartupNotify=true
+          Terminal=false
+          DESKTOP
+
+          # DEBIAN/control
+          DEB_SIZE=$(du -sk "$PKG_ROOT/opt" | cut -f1)
+          cat > "$PKG_ROOT/DEBIAN/control" << EOF
+          Package: nickel-browser
+          Version: ${NICKEL_VERSION}+chromium${CHROMIUM_VERSION}
+          Architecture: amd64
+          Section: web
+          Priority: optional
+          Installed-Size: ${DEB_SIZE}
+          Depends: libgtk-3-0 (>= 3.24), libnss3 (>= 3.26), libxss1, libasound2,
+           libxtst6, libatk1.0-0, libxcomposite1, libxdamage1, libxrandr2,
+           libxfixes3, libdrm2, libgbm1, libpulse0, fonts-liberation
+          Recommends: xdg-utils
+          Maintainer: Nickel Browser Team <team@nickel-browser.org>
+          Homepage: https://github.com/Nickel-Browser/Nickel-Browser
+          Description: Nickel Browser — Privacy-first Chromium fork
+           Block Everything. Leak Nothing. Own Your Web.
+           .
+           Nickel Browser is built on ungoogled-chromium with source-level
+           ad blocking, built-in Tor private tabs, fingerprint protection,
+           and zero telemetry — architecturally impossible to enable.
+          EOF
+
+          # postinst
+          cat > "$PKG_ROOT/DEBIAN/postinst" << 'POSTINST'
+          #!/bin/sh
+          set -e
+          update-desktop-database /usr/share/applications 2>/dev/null || true
+          gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+          echo "✅ Nickel Browser installed!"
+          POSTINST
+          chmod 755 "$PKG_ROOT/DEBIAN/postinst"
+
+          # postrm
+          cat > "$PKG_ROOT/DEBIAN/postrm" << 'POSTRM'
+          #!/bin/sh
+          set -e
+          update-desktop-database /usr/share/applications 2>/dev/null || true
+          gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+          POSTRM
+          chmod 755 "$PKG_ROOT/DEBIAN/postrm"
+
+          # Build the package
+          DEB_NAME="nickel-browser_${NICKEL_VERSION}+chromium${CHROMIUM_VERSION}_amd64.deb"
+          dpkg-deb --build "$PKG_ROOT" "$NICKEL_DIR/$DEB_NAME"
+          echo "✅ .deb created: $DEB_NAME"
+          echo "DEB_NAME=$DEB_NAME" >> "$GITHUB_ENV"
+
+      - name: 📦 Create Portable .tar.xz
+        run: |
+          set -euo pipefail
+
+          TAR_NAME="nickel-browser_${NICKEL_VERSION}+chromium${CHROMIUM_VERSION}_linux-x64.tar.xz"
+          STAGING=$(mktemp -d)
+          BUNDLE="$STAGING/nickel-browser-${NICKEL_VERSION}"
+
+          mkdir -p "$BUNDLE"
+          cp "$OUT_DIR/chrome"         "$BUNDLE/nickel-browser"
+          cp "$OUT_DIR/chrome_sandbox" "$BUNDLE/chrome-sandbox"
+          chmod 4755                   "$BUNDLE/chrome-sandbox"
+          for f in icudtl.dat resources.pak \
+                   chrome_100_percent.pak chrome_200_percent.pak \
+                   snapshot_blob.bin v8_context_snapshot.bin \
+                   libEGL.so libGLESv2.so; do
+            [[ -f "$OUT_DIR/$f" ]] && cp "$OUT_DIR/$f" "$BUNDLE/"
+          done
+          [[ -d "$OUT_DIR/locales" ]] && cp -r "$OUT_DIR/locales" "$BUNDLE/"
+
+          # Launch wrapper
+          cat > "$BUNDLE/nickel-browser.sh" << 'LAUNCHER'
+          #!/bin/bash
+          DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          exec "$DIR/nickel-browser" "$@"
+          LAUNCHER
+          chmod +x "$BUNDLE/nickel-browser.sh"
+
+          tar -C "$STAGING" -cJf "$NICKEL_DIR/$TAR_NAME" \
+            "nickel-browser-${NICKEL_VERSION}"
+
+          echo "✅ .tar.xz created: $TAR_NAME"
+          echo "TAR_NAME=$TAR_NAME" >> "$GITHUB_ENV"
+
+      # ---- SHA256 Checksums -------------------------------------------------
+      - name: 🔐 Generate Checksums
+        run: |
+          cd "$NICKEL_DIR"
+          sha256sum "$DEB_NAME" "$TAR_NAME" > SHA256SUMS.txt
+          echo "📋 SHA256SUMS.txt:"
+          cat SHA256SUMS.txt
+
+      # ---- Upload Artifacts -------------------------------------------------
+      - name: ⬆️ Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nickel-browser-linux-x64-${{ env.NICKEL_VERSION }}-chromium${{ env.CHROMIUM_VERSION }}
+          path: |
+            ${{ env.DEB_NAME }}
+            ${{ env.TAR_NAME }}
+            SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      # ---- GitHub Release (tag builds only) ---------------------------------
+      - name: 🚀 Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Nickel Browser ${{ env.NICKEL_VERSION }} (Chromium ${{ env.CHROMIUM_VERSION }})"
+          body: |
+            ## 🪙 Nickel Browser ${{ env.NICKEL_VERSION }}
+
+            Built from ungoogled-chromium **${{ env.UC_VERSION }}** (Chromium ${{ env.CHROMIUM_VERSION }}).
+
+            ### Downloads
+
+            | Package | Format | Platform |
+            |---------|--------|----------|
+            | `${{ env.DEB_NAME }}` | Debian/Ubuntu `.deb` | Linux x64 |
+            | `${{ env.TAR_NAME }}` | Portable `.tar.xz` | Linux x64 |
+
+            ### Install (Debian/Ubuntu)
+            ```bash
+            sudo dpkg -i ${{ env.DEB_NAME }}
+            sudo apt-get install -f   # fix any missing deps
+            ```
+
+            ### Verify Checksums
+            ```bash
+            sha256sum -c SHA256SUMS.txt
+            ```
+
+            ### What's in this build
+            - ✅ Base: ungoogled-chromium (Google services removed at source level)
+            - ✅ Nickel branding & product identity
+            - ✅ DuckDuckGo as default search engine
+            - ✅ Hardened privacy defaults (WebRTC, cookies, DNT)
+            - ✅ Source-level ad-blocking engine
+            - ✅ Fingerprint protection layer
+            - ✅ Tor private-tab integration
+            - ✅ Zero telemetry (architectural)
+          files: |
+            ${{ env.DEB_NAME }}
+            ${{ env.TAR_NAME }}
+            SHA256SUMS.txt
+          draft: false
+          prerelease: ${{ contains(env.NICKEL_VERSION, 'alpha') || contains(env.NICKEL_VERSION, 'beta') }}
+          generate_release_notes: false
+
+      # ---- Debug Artifacts on Failure --------------------------------------
+      - name: 🐛 Upload Build Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-logs-${{ github.run_id }}
+          path: |
+            ${{ env.OUT_DIR }}/*.log
+            ${{ env.OUT_DIR }}/toolchain.ninja
+          retention-days: 7
+          if-no-files-found: ignore
