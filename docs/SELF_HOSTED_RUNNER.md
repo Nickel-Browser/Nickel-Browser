@@ -45,11 +45,12 @@ sudo apt-get install -y \
   gperf bison flex dpkg-dev fakeroot xz-utils tar jq elfutils shellcheck
 ```
 
-### 2. Configure Swap (Essential for 16–32 GB RAM Machines)
+### 2. Configure Swap (Recommended for Machines with Less than 32 GB RAM)
 
 ```bash
-# Create a 64 GB swap file
-sudo fallocate -l 64G /swapfile
+# Create a swap file — 32 GB is sufficient for 16 GB RAM machines
+# Machines with 32+ GB RAM can use a smaller swap (8–16 GB) or skip this step
+sudo fallocate -l 32G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
@@ -108,7 +109,7 @@ tar xzf ./actions-runner-linux-x64.tar.gz
    ```
    /data/nickel-runner/_work
    ```
-   (create this directory first: `sudo mkdir -p /data/nickel-runner/_work && sudo chown $USER /data/nickel-runner/_work`)
+   (create this directory first: `sudo mkdir -p /data/nickel-runner/_work && sudo chown "$(whoami)" /data/nickel-runner/_work`)
 
 ### 5. Start the Runner as a systemd Service (Recommended)
 

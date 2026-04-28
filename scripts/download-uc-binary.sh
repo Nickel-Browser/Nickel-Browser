@@ -51,7 +51,7 @@ CURL_OPTS=(-sL --connect-timeout 30 --max-time 600)
 
 echo "📡 Fetching releases from $REPO..."
 RELEASES_URL="https://api.github.com/repos/$REPO/releases"
-RELEASE_DATA=$(curl "${CURL_OPTS[@]}" "${CURL_AUTH[@]}" "$RELEASES_URL")
+RELEASE_DATA=$(curl "${CURL_OPTS[@]}" ${CURL_AUTH:+"${CURL_AUTH[@]}"} "$RELEASES_URL")
 
 # Check if RELEASE_DATA is a valid JSON array
 if [ -z "$RELEASE_DATA" ] || ! echo "$RELEASE_DATA" | jq -e 'type == "array"' > /dev/null; then
@@ -82,7 +82,7 @@ echo "✅ Found matching release: $TARGET_TAG"
 
 # Get the specific release data
 API_URL="https://api.github.com/repos/$REPO/releases/tags/$TARGET_TAG"
-RELEASE_DATA=$(curl "${CURL_OPTS[@]}" "${CURL_AUTH[@]}" "$API_URL")
+RELEASE_DATA=$(curl "${CURL_OPTS[@]}" ${CURL_AUTH:+"${CURL_AUTH[@]}"} "$API_URL")
 
 if [ -z "$RELEASE_DATA" ] || [ "$(echo "$RELEASE_DATA" | jq '.assets')" = "null" ]; then
     echo "❌ Error: Failed to fetch assets for release $TARGET_TAG"
