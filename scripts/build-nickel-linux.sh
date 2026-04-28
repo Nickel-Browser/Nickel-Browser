@@ -204,7 +204,7 @@ enable_widevine = false
 fieldtrial_testing_like_official_build = true
 is_clang = true
 use_lld = true
-defines = ["NICKEL_BROWSER=1","NICKEL_ADBLOCK_ENABLED=1","NICKEL_FINGERPRINT_PROTECTION=1","NICKEL_TOR_INTEGRATION=1"]
+defines = ["NICKEL_BROWSER=1", "NICKEL_ADBLOCK_ENABLED=1", "NICKEL_FINGERPRINT_PROTECTION=1", "NICKEL_TOR_INTEGRATION=1"]
 NICKEL_ARGS
 
 cd "$SRC_DIR"
