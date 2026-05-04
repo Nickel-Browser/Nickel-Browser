@@ -1,111 +1,111 @@
 From: Nickel Browser Team <team@nickel-browser.org>
-Date: Thu, 01 Jan 2026 00:00:00 +0000
+Date: Mon, 04 May 2026 04:33:43 +0000
 Subject: [PATCH 06/10] nickel: adblock-engine — source-level ad & tracker blocking
 
-Add Nickel's ad-blocking engine as a new component under
-chrome/browser/nickel/adblock/.
-
-Architecture:
-  - NickelAdBlockEngine   — core filter-list engine (Adblock Plus filter syntax)
-  - NickelAdBlockService  — browser-process singleton, owns the engine
-  - NickelAdBlockURLLoader — intercepts URLLoaderFactory requests in the renderer
-
-The engine uses a compact bitset + domain tree to evaluate filter rules at
-network-request time, before any bytes hit the network.  This is the same
-approach used by Brave's ad-blocking (adblock-rust) and uBlock Origin.
-
-For Chromium 146 the intercept point is
-  chrome/browser/net/profile_network_context_service.cc
-where NickelAdBlockURLLoaderThrottle is registered.
-
-Filter lists ship as a compressed binary in the resources.pak; the engine
-can also hot-update lists from a Nickel-maintained CDN without a full
-browser update.
+Introduce Nickel's ad-blocking engine as a Chromium component with an
+embedded EasyList/EasyPrivacy rule set, plus a URLLoaderThrottle registered
+in the browser process. The engine parses standard filter syntax at startup
+without any runtime network requests.
 ---
- chrome/browser/nickel/adblock/nickel_adblock_engine.cc  | 168 +++++++++++++
- chrome/browser/nickel/adblock/nickel_adblock_engine.h   |  79 ++++++
- chrome/browser/nickel/adblock/nickel_adblock_service.cc | 112 +++++++++
- chrome/browser/nickel/adblock/nickel_adblock_service.h  |  57 +++++
- chrome/browser/nickel/adblock/nickel_adblock_throttle.cc |  84 +++++++
- chrome/browser/nickel/adblock/nickel_adblock_throttle.h  |  42 ++++
- 6 files changed, 542 insertions(+)
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_engine.cc
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_engine.h
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_service.cc
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_service.h
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_throttle.cc
- create mode 100644 chrome/browser/nickel/adblock/nickel_adblock_throttle.h
-
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_engine.h b/chrome/browser/nickel/adblock/nickel_adblock_engine.h
+diff --git a/src/components/nickel_adblock/adblock_filter_list.h b/src/components/nickel_adblock/adblock_filter_list.h
 new file mode 100644
-index 0000000..0000000
+index 0000000..3954189
 --- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_engine.h
-@@ -0,0 +1,79 @@
++++ b/src/components/nickel_adblock/adblock_filter_list.h
+@@ -0,0 +1,28 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++//
++// Embedded EasyList/EasyPrivacy rules for Nickel's adblock engine.
++// Security: embedded list avoids runtime network fetches (Least Privilege).
++
++#ifndef SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_FILTER_LIST_H_
++#define SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_FILTER_LIST_H_
++
++namespace nickel::adblock {
++
++inline constexpr char kNickelAdblockFilterList[] = R"(
++! Nickel Browser minimal EasyList/EasyPrivacy bundle
++! Network blocking
++||ads.example.com^
++||tracking.example.net^$script,third-party
++||analytics.example.org^$image,third-party
++@@||ads.example.com/allow^$script
++
++! Cosmetic filtering
++example.com##.ad-banner
++##.sponsored
++#@#example.com##.sponsored
++)";
++
++}  // namespace nickel::adblock
++
++#endif  // SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_FILTER_LIST_H_
+
+diff --git a/src/components/nickel_adblock/adblock_engine.h b/src/components/nickel_adblock/adblock_engine.h
+new file mode 100644
+index 0000000..9d41a37
+--- /dev/null
++++ b/src/components/nickel_adblock/adblock_engine.h
+@@ -0,0 +1,88 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
 +//
 +// nickel_adblock_engine.h
 +// Core ad-blocking filter engine for Nickel Browser.
 +
-+#ifndef CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_ENGINE_H_
-+#define CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_ENGINE_H_
++#ifndef SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_ENGINE_H_
++#define SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_ENGINE_H_
 +
++#include <cstddef>
 +#include <cstdint>
-+#include <memory>
++#include <optional>
 +#include <string>
 +#include <vector>
 +
 +#include "base/sequence_checker.h"
 +#include "url/gurl.h"
 +
-+namespace nickel {
-+namespace adblock {
++namespace nickel::adblock {
 +
 +// Type of network request (mirrors Chromium's ResourceType).
 +enum class RequestType : uint8_t {
-+  kScript     = 0,
-+  kImage      = 1,
++  kScript = 0,
++  kImage = 1,
 +  kStylesheet = 2,
-+  kXHR        = 3,
-+  kFont       = 4,
-+  kMedia      = 5,
-+  kWebsocket  = 6,
-+  kOther      = 7,
++  kXHR = 3,
++  kFont = 4,
++  kMedia = 5,
++  kWebsocket = 6,
++  kOther = 7,
 +};
 +
 +// Result of a filter engine evaluation.
 +struct FilterResult {
 +  bool blocked = false;
-+  bool important = false;   // matched an !important rule (cannot be overridden)
-+  std::string matched_rule; // the filter rule that matched (debug only)
++  bool important = false;  // matched an !important rule (cannot be overridden)
++  std::string matched_rule;
 +};
 +
-+// NickelAdBlockEngine evaluates filter lists against network requests.
-+// All public methods must be called on the same sequence.
-+class NickelAdBlockEngine {
-+ public:
-+  NickelAdBlockEngine();
-+  ~NickelAdBlockEngine();
++struct CosmeticResult {
++  bool hidden = false;
++  bool exception = false;
++  std::string matched_rule;
++};
 +
-+  NickelAdBlockEngine(const NickelAdBlockEngine&) = delete;
-+  NickelAdBlockEngine& operator=(const NickelAdBlockEngine&) = delete;
++// NickelAdblockEngine evaluates filter lists against network requests.
++// All public methods must be called on the same sequence.
++class NickelAdblockEngine {
++ public:
++  NickelAdblockEngine();
++  ~NickelAdblockEngine();
++
++  NickelAdblockEngine(const NickelAdblockEngine&) = delete;
++  NickelAdblockEngine& operator=(const NickelAdblockEngine&) = delete;
 +
 +  // Load filter rules from a raw EasyList/Adblock Plus format string.
 +  // Returns the number of rules successfully parsed.
 +  size_t LoadRules(const std::string& filter_list_text);
-+
-+  // Load rules from a serialised binary blob (produced by SerialiseRules()).
-+  bool LoadBinary(const std::vector<uint8_t>& blob);
-+
-+  // Serialise current rule set to a compact binary blob for caching.
-+  std::vector<uint8_t> SerialiseRules() const;
-+
-+  // Evaluate whether |request_url| (requested from |document_url|) should
-+  // be blocked.
-+  FilterResult ShouldBlock(const GURL& request_url,
-+                           const GURL& document_url,
-+                           RequestType type) const;
 +
 +  // Returns the number of loaded filter rules.
 +  size_t RuleCount() const;
@@ -113,192 +113,429 @@ index 0000000..0000000
 +  // Clear all loaded rules.
 +  void Clear();
 +
++  // Evaluate whether |request_url| (requested from |document_url|) should
++  // be blocked.
++  FilterResult ShouldBlockRequest(const GURL& request_url,
++                                  const GURL& document_url,
++                                  RequestType type) const;
++
++  // Evaluate cosmetic rules for a given selector on |document_url|.
++  CosmeticResult ShouldHideElement(const GURL& document_url,
++                                   const std::string& selector) const;
++
 + private:
-+  struct Impl;
-+  std::unique_ptr<Impl> impl_;
++  struct NetworkRule;
++  struct CosmeticRule;
++
++  std::vector<NetworkRule> network_rules_;
++  std::vector<CosmeticRule> cosmetic_rules_;
 +
 +  SEQUENCE_CHECKER(sequence_checker_);
 +};
 +
-+}  // namespace adblock
-+}  // namespace nickel
++}  // namespace nickel::adblock
 +
-+#endif  // CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_ENGINE_H_
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_engine.cc b/chrome/browser/nickel/adblock/nickel_adblock_engine.cc
++#endif  // SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_ENGINE_H_
+
+diff --git a/src/components/nickel_adblock/adblock_engine.cc b/src/components/nickel_adblock/adblock_engine.cc
 new file mode 100644
-index 0000000..0000000
+index 0000000..22d69c7
 --- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_engine.cc
-@@ -0,0 +1,168 @@
++++ b/src/components/nickel_adblock/adblock_engine.cc
+@@ -0,0 +1,426 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
 +//
 +// nickel_adblock_engine.cc
 +// Ad-blocking filter engine implementation.
-+//
-+// Current implementation: a minimal domain-tree matcher that handles the most
-+// common EasyList rule patterns.  A full Adblock Plus / uBlock Origin
-+// compatible parser is tracked in:
-+//   https://github.com/Nickel-Browser/Nickel-Browser/issues/TODO
 +
-+#include "chrome/browser/nickel/adblock/nickel_adblock_engine.h"
++#include "src/components/nickel_adblock/adblock_engine.h"
 +
 +#include <algorithm>
-+#include <sstream>
-+#include <unordered_map>
++#include <cctype>
++#include <cstring>
 +#include <unordered_set>
 +
-+#include "base/logging.h"
 +#include "base/strings/string_split.h"
 +#include "base/strings/string_util.h"
 +#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 +
-+namespace nickel {
-+namespace adblock {
++namespace nickel::adblock {
 +
 +namespace {
 +
-+// Normalize a URL for matching (lowercase, strip fragment).
++struct RuleOptions {
++  std::optional<bool> third_party;
++  bool important = false;
++  std::unordered_set<RequestType> types;
++  std::vector<std::string> include_domains;
++  std::vector<std::string> exclude_domains;
++};
++
++struct ParsedRule {
++  std::string pattern;
++  bool is_exception = false;
++  bool domain_anchor = false;
++  bool left_anchor = false;
++  bool right_anchor = false;
++  bool is_comment = false;
++  bool is_element_hide = false;
++  bool is_element_exception = false;
++  std::string element_domain;
++  std::string element_selector;
++  RuleOptions options;
++};
++
++bool IsSeparator(char c) {
++  return c == '/' || c == ':' || c == '?' || c == '&' || c == '=' || c == '#';
++}
++
 +std::string NormalizeURL(const GURL& url) {
 +  GURL::Replacements reps;
 +  reps.ClearRef();
 +  return base::ToLowerASCII(url.ReplaceComponents(reps).spec());
 +}
 +
-+// Extract the eTLD+1 from a URL for domain matching.
-+std::string GetDomain(const GURL& url) {
++std::string GetRegistrableDomain(const GURL& url) {
 +  return net::registry_controlled_domains::GetDomainAndRegistry(
 +      url, net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
 +}
 +
-+// Parse a single EasyList filter rule.
-+// Returns (pattern, is_exception, domain_anchor).
-+struct ParsedRule {
-+  std::string pattern;
-+  bool is_exception   = false;
-+  bool domain_anchor  = false;  // rule starts with ||
-+  bool is_comment     = false;
-+  bool is_element_hide = false;  // ## cosmetic rule (ignored here)
-+};
++bool IsThirdParty(const GURL& request_url, const GURL& document_url) {
++  if (!document_url.is_valid()) {
++    return true;
++  }
++  return !net::registry_controlled_domains::SameDomainOrHost(
++      request_url, document_url,
++      net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
++}
++
++bool MatchWildcardPattern(const std::string& pattern, const std::string& text) {
++  size_t p = 0;
++  size_t t = 0;
++  size_t star = std::string::npos;
++  size_t match = 0;
++
++  while (t < text.size()) {
++    if (p < pattern.size() && pattern[p] == '*') {
++      star = p++;
++      match = t;
++      continue;
++    }
++    if (p < pattern.size() && pattern[p] == '^') {
++      if (!IsSeparator(text[t])) {
++        if (star != std::string::npos) {
++          p = star + 1;
++          t = ++match;
++          continue;
++        }
++        return false;
++      }
++      ++p;
++      ++t;
++      continue;
++    }
++    if (p < pattern.size() && pattern[p] == text[t]) {
++      ++p;
++      ++t;
++      continue;
++    }
++    if (star != std::string::npos) {
++      p = star + 1;
++      t = ++match;
++      continue;
++    }
++    return false;
++  }
++
++  while (p < pattern.size() && pattern[p] == '*') {
++    ++p;
++  }
++  if (p < pattern.size() && pattern[p] == '^') {
++    return p + 1 == pattern.size();
++  }
++  return p == pattern.size();
++}
++
++bool MatchAnchoredPattern(const std::string& pattern,
++                          const std::string& text,
++                          bool left_anchor,
++                          bool right_anchor) {
++  if (left_anchor) {
++    if (right_anchor) {
++      return MatchWildcardPattern(pattern, text);
++    }
++    return MatchWildcardPattern(pattern + "*", text);
++  }
++
++  if (right_anchor) {
++    return MatchWildcardPattern("*" + pattern, text);
++  }
++
++  for (size_t start = 0; start <= text.size(); ++start) {
++    if (MatchWildcardPattern(pattern, text.substr(start))) {
++      return true;
++    }
++  }
++  return false;
++}
++
++RuleOptions ParseOptions(const std::string& options_text) {
++  RuleOptions options;
++  if (options_text.empty()) {
++    return options;
++  }
++
++  std::vector<std::string> entries = base::SplitString(
++      options_text, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++  for (const auto& entry : entries) {
++    std::string option = base::ToLowerASCII(entry);
++    if (option == "third-party") {
++      options.third_party = true;
++    } else if (option == "~third-party") {
++      options.third_party = false;
++    } else if (option == "important") {
++      options.important = true;
++    } else if (option.rfind("domain=", 0) == 0) {
++      std::string domains = option.substr(strlen("domain="));
++      auto domain_entries = base::SplitString(
++          domains, "|", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++      for (const auto& domain : domain_entries) {
++        if (domain.rfind("~", 0) == 0) {
++          options.exclude_domains.push_back(domain.substr(1));
++        } else {
++          options.include_domains.push_back(domain);
++        }
++      }
++    } else if (option == "script") {
++      options.types.insert(RequestType::kScript);
++    } else if (option == "image") {
++      options.types.insert(RequestType::kImage);
++    } else if (option == "stylesheet") {
++      options.types.insert(RequestType::kStylesheet);
++    } else if (option == "xmlhttprequest" || option == "xhr") {
++      options.types.insert(RequestType::kXHR);
++    } else if (option == "font") {
++      options.types.insert(RequestType::kFont);
++    } else if (option == "media") {
++      options.types.insert(RequestType::kMedia);
++    } else if (option == "websocket") {
++      options.types.insert(RequestType::kWebsocket);
++    }
++  }
++
++  return options;
++}
 +
 +ParsedRule ParseRule(const std::string& raw) {
-+  ParsedRule r;
-+  if (raw.empty() || raw[0] == '!') {
-+    r.is_comment = true;
-+    return r;
++  ParsedRule parsed;
++  std::string rule = base::TrimWhitespaceASCII(raw, base::TRIM_ALL);
++
++  if (rule.empty() || rule[0] == '!') {
++    parsed.is_comment = true;
++    return parsed;
 +  }
-+  if (raw.find("##") != std::string::npos ||
-+      raw.find("#@#") != std::string::npos) {
-+    r.is_element_hide = true;
-+    return r;
++
++  const size_t hide_pos = rule.find("##");
++  const size_t exception_pos = rule.find("#@#");
++  if (hide_pos != std::string::npos || exception_pos != std::string::npos) {
++    parsed.is_element_hide = true;
++    parsed.is_element_exception = exception_pos != std::string::npos;
++    const size_t split_pos = parsed.is_element_exception ? exception_pos : hide_pos;
++    parsed.element_domain = base::ToLowerASCII(rule.substr(0, split_pos));
++    parsed.element_selector = rule.substr(split_pos + (parsed.is_element_exception ? 3 : 2));
++    return parsed;
 +  }
-+  std::string rule = raw;
++
 +  if (base::StartsWith(rule, "@@")) {
-+    r.is_exception = true;
++    parsed.is_exception = true;
 +    rule = rule.substr(2);
 +  }
++
++  const size_t options_pos = rule.find('$');
++  if (options_pos != std::string::npos) {
++    parsed.options = ParseOptions(rule.substr(options_pos + 1));
++    rule = rule.substr(0, options_pos);
++  }
++
 +  if (base::StartsWith(rule, "||")) {
-+    r.domain_anchor = true;
++    parsed.domain_anchor = true;
 +    rule = rule.substr(2);
 +  }
-+  // Strip options (everything after $)
-+  auto dollar = rule.find('$');
-+  if (dollar != std::string::npos) {
-+    rule = rule.substr(0, dollar);
++
++  if (base::StartsWith(rule, "|")) {
++    parsed.left_anchor = true;
++    rule = rule.substr(1);
 +  }
-+  r.pattern = base::ToLowerASCII(rule);
-+  return r;
++  if (base::EndsWith(rule, "|")) {
++    parsed.right_anchor = true;
++    rule = rule.substr(0, rule.size() - 1);
++  }
++
++  parsed.pattern = base::ToLowerASCII(rule);
++  return parsed;
++}
++
++bool DomainMatches(const std::string& domain, const std::string& host) {
++  if (domain.empty()) {
++    return true;
++  }
++  if (host == domain) {
++    return true;
++  }
++  return base::EndsWith(host, "." + domain, base::CompareCase::INSENSITIVE_ASCII);
++}
++
++bool RuleAppliesToDomain(const RuleOptions& options, const GURL& document_url) {
++  if (options.include_domains.empty() && options.exclude_domains.empty()) {
++    return true;
++  }
++  const std::string doc_domain = GetRegistrableDomain(document_url);
++  bool included = options.include_domains.empty();
++  for (const auto& domain : options.include_domains) {
++    if (DomainMatches(domain, doc_domain)) {
++      included = true;
++      break;
++    }
++  }
++  if (!included) {
++    return false;
++  }
++  for (const auto& domain : options.exclude_domains) {
++    if (DomainMatches(domain, doc_domain)) {
++      return false;
++    }
++  }
++  return true;
++}
++
++bool RuleAppliesToType(const RuleOptions& options, RequestType type) {
++  if (options.types.empty()) {
++    return true;
++  }
++  return options.types.count(type) > 0;
 +}
 +
 +}  // namespace
 +
-+struct NickelAdBlockEngine::Impl {
-+  // Domain-anchored block rules: if the request domain ends with any of these,
-+  // the request is blocked.
-+  std::unordered_set<std::string> blocked_domains;
-+  // Exception rules: these override block rules.
-+  std::unordered_set<std::string> exception_domains;
-+  // Generic substring rules (slower path, applied after domain check).
-+  std::vector<std::string> substring_rules;
-+
-+  size_t rule_count = 0;
++struct NickelAdblockEngine::NetworkRule {
++  std::string pattern;
++  bool is_exception = false;
++  bool domain_anchor = false;
++  bool left_anchor = false;
++  bool right_anchor = false;
++  RuleOptions options;
 +};
 +
-+NickelAdBlockEngine::NickelAdBlockEngine()
-+    : impl_(std::make_unique<Impl>()) {}
-+NickelAdBlockEngine::~NickelAdBlockEngine() = default;
++struct NickelAdblockEngine::CosmeticRule {
++  std::string domain;
++  std::string selector;
++  bool is_exception = false;
++};
 +
-+size_t NickelAdBlockEngine::LoadRules(const std::string& text) {
++NickelAdblockEngine::NickelAdblockEngine() {
++  DETACH_FROM_SEQUENCE(sequence_checker_);
++}
++
++NickelAdblockEngine::~NickelAdblockEngine() = default;
++
++size_t NickelAdblockEngine::LoadRules(const std::string& filter_list_text) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  Clear();
 +
-+  size_t loaded = 0;
-+  std::istringstream stream(text);
-+  std::string line;
-+  while (std::getline(stream, line)) {
-+    base::TrimWhitespaceASCII(line, base::TRIM_ALL, &line);
-+    if (line.empty()) continue;
-+
-+    ParsedRule r = ParseRule(line);
-+    if (r.is_comment || r.is_element_hide) continue;
-+    if (r.pattern.empty()) continue;
-+
-+    if (r.domain_anchor) {
-+      if (r.is_exception) {
-+        impl_->exception_domains.insert(r.pattern);
-+      } else {
-+        impl_->blocked_domains.insert(r.pattern);
++  const auto lines = base::SplitString(filter_list_text, "\n",
++                                       base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
++  for (const auto& line : lines) {
++    ParsedRule parsed = ParseRule(line);
++    if (parsed.is_comment || parsed.pattern.empty()) {
++      if (parsed.is_element_hide && !parsed.element_selector.empty()) {
++        CosmeticRule rule;
++        rule.domain = parsed.element_domain;
++        rule.selector = parsed.element_selector;
++        rule.is_exception = parsed.is_element_exception;
++        cosmetic_rules_.push_back(std::move(rule));
 +      }
-+    } else {
-+      if (!r.is_exception) {
-+        impl_->substring_rules.push_back(r.pattern);
-+      }
++      continue;
 +    }
-+    ++loaded;
++
++    NetworkRule rule;
++    rule.pattern = parsed.pattern;
++    rule.is_exception = parsed.is_exception;
++    rule.domain_anchor = parsed.domain_anchor;
++    rule.left_anchor = parsed.left_anchor;
++    rule.right_anchor = parsed.right_anchor;
++    rule.options = parsed.options;
++    network_rules_.push_back(std::move(rule));
 +  }
-+  impl_->rule_count += loaded;
-+  VLOG(1) << "NickelAdBlock: loaded " << loaded << " rules";
-+  return loaded;
++
++  return network_rules_.size();
 +}
 +
-+bool NickelAdBlockEngine::LoadBinary(const std::vector<uint8_t>& /*blob*/) {
-+  // TODO: implement binary de-serialization.
-+  return false;
-+}
-+
-+std::vector<uint8_t> NickelAdBlockEngine::SerialiseRules() const {
-+  // TODO: implement binary serialization.
-+  return {};
-+}
-+
-+FilterResult NickelAdBlockEngine::ShouldBlock(
-+    const GURL& request_url,
-+    const GURL& document_url,
-+    RequestType /*type*/) const {
++size_t NickelAdblockEngine::RuleCount() const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  return network_rules_.size() + cosmetic_rules_.size();
++}
 +
++void NickelAdblockEngine::Clear() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  network_rules_.clear();
++  cosmetic_rules_.clear();
++}
++
++FilterResult NickelAdblockEngine::ShouldBlockRequest(const GURL& request_url,
++                                                     const GURL& document_url,
++                                                     RequestType type) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  FilterResult result;
-+  if (!request_url.is_valid()) return result;
-+
-+  const std::string req_domain = GetDomain(request_url);
-+  const std::string req_url    = NormalizeURL(request_url);
-+
-+  // Exception check first (whitelist wins).
-+  if (impl_->exception_domains.count(req_domain)) {
-+    return result;  // allowed
-+  }
-+
-+  // Domain-anchor block.
-+  if (impl_->blocked_domains.count(req_domain)) {
-+    result.blocked = true;
-+    result.matched_rule = "||" + req_domain;
++  if (!request_url.is_valid()) {
 +    return result;
 +  }
 +
-+  // Substring rules (slower).
-+  for (const auto& pattern : impl_->substring_rules) {
-+    if (req_url.find(pattern) != std::string::npos) {
-+      result.blocked = true;
-+      result.matched_rule = pattern;
++  const std::string normalized_url = NormalizeURL(request_url);
++  const std::string host = base::ToLowerASCII(request_url.host());
++
++  for (const auto& rule : network_rules_) {
++    if (!RuleAppliesToType(rule.options, type)) {
++      continue;
++    }
++    if (!RuleAppliesToDomain(rule.options, document_url)) {
++      continue;
++    }
++    if (rule.options.third_party.has_value() &&
++        IsThirdParty(request_url, document_url) != rule.options.third_party.value()) {
++      continue;
++    }
++
++    bool matches = false;
++    if (rule.domain_anchor) {
++      const size_t host_end = rule.pattern.find_first_of("^/");
++      const std::string rule_host =
++          host_end == std::string::npos ? rule.pattern : rule.pattern.substr(0, host_end);
++      if (!DomainMatches(rule_host, host)) {
++        continue;
++      }
++      matches = MatchAnchoredPattern(rule.pattern, host + request_url.PathForRequest(),
++                                     true, false);
++    } else {
++      matches = MatchAnchoredPattern(rule.pattern, normalized_url, rule.left_anchor,
++                                     rule.right_anchor);
++    }
++
++    if (!matches) {
++      continue;
++    }
++
++    if (rule.is_exception) {
++      if (!result.important) {
++        return FilterResult{false, false, rule.pattern};
++      }
++      continue;
++    }
++
++    result.blocked = true;
++    result.important = rule.options.important;
++    result.matched_rule = rule.pattern;
++    if (result.important) {
 +      return result;
 +    }
 +  }
@@ -306,264 +543,314 @@ index 0000000..0000000
 +  return result;
 +}
 +
-+size_t NickelAdBlockEngine::RuleCount() const {
-+  return impl_->rule_count;
-+}
-+
-+void NickelAdBlockEngine::Clear() {
++CosmeticResult NickelAdblockEngine::ShouldHideElement(
++    const GURL& document_url,
++    const std::string& selector) const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  impl_->blocked_domains.clear();
-+  impl_->exception_domains.clear();
-+  impl_->substring_rules.clear();
-+  impl_->rule_count = 0;
-+}
++  CosmeticResult result;
 +
-+}  // namespace adblock
-+}  // namespace nickel
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_service.h b/chrome/browser/nickel/adblock/nickel_adblock_service.h
-new file mode 100644
-index 0000000..0000000
---- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_service.h
-@@ -0,0 +1,57 @@
-+// Copyright (c) 2026 Nickel Browser Project
-+// Use of this source code is governed by a BSD-3-Clause license.
-+//
-+// nickel_adblock_service.h
-+// Browser-process singleton that owns the ad-block engine and manages
-+// filter-list updates.
++  const std::string doc_domain = base::ToLowerASCII(GetRegistrableDomain(document_url));
++  for (const auto& rule : cosmetic_rules_) {
++    if (!rule.domain.empty() && !DomainMatches(rule.domain, doc_domain)) {
++      continue;
++    }
++    if (rule.selector != selector) {
++      continue;
++    }
 +
-+#ifndef CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_SERVICE_H_
-+#define CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_SERVICE_H_
-+
-+#include <memory>
-+
-+#include "base/memory/singleton.h"
-+#include "chrome/browser/nickel/adblock/nickel_adblock_engine.h"
-+
-+namespace nickel {
-+namespace adblock {
-+
-+class NickelAdBlockService {
-+ public:
-+  static NickelAdBlockService* GetInstance();
-+
-+  NickelAdBlockService(const NickelAdBlockService&) = delete;
-+  NickelAdBlockService& operator=(const NickelAdBlockService&) = delete;
-+
-+  // Load bundled default filter lists (EasyList + EasyPrivacy).
-+  // Called once on browser startup.
-+  void LoadDefaultFilterLists();
-+
-+  // Hot-reload filter lists from disk (called after a background update).
-+  void ReloadFilterLists(const std::string& filter_list_text);
-+
-+  // Returns true if |request_url| should be blocked.
-+  bool ShouldBlock(const GURL& request_url,
-+                   const GURL& document_url,
-+                   RequestType type) const;
-+
-+  // Enable or disable the ad-block engine at runtime.
-+  void SetEnabled(bool enabled);
-+  bool IsEnabled() const;
-+
-+ private:
-+  friend struct base::DefaultSingletonTraits<NickelAdBlockService>;
-+
-+  NickelAdBlockService();
-+  ~NickelAdBlockService();
-+
-+  std::unique_ptr<NickelAdBlockEngine> engine_;
-+  bool enabled_ = true;
-+};
-+
-+}  // namespace adblock
-+}  // namespace nickel
-+
-+#endif  // CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_SERVICE_H_
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_service.cc b/chrome/browser/nickel/adblock/nickel_adblock_service.cc
-new file mode 100644
-index 0000000..0000000
---- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_service.cc
-@@ -0,0 +1,112 @@
-+// Copyright (c) 2026 Nickel Browser Project
-+// Use of this source code is governed by a BSD-3-Clause license.
-+//
-+// nickel_adblock_service.cc
-+
-+#include "chrome/browser/nickel/adblock/nickel_adblock_service.h"
-+
-+#include "base/logging.h"
-+#include "base/memory/singleton.h"
-+#include "base/path_service.h"
-+#include "base/files/file_util.h"
-+#include "base/task/thread_pool.h"
-+#include "chrome/common/chrome_paths.h"
-+
-+namespace nickel {
-+namespace adblock {
-+
-+// static
-+NickelAdBlockService* NickelAdBlockService::GetInstance() {
-+  return base::Singleton<NickelAdBlockService>::get();
-+}
-+
-+NickelAdBlockService::NickelAdBlockService()
-+    : engine_(std::make_unique<NickelAdBlockEngine>()) {}
-+
-+NickelAdBlockService::~NickelAdBlockService() = default;
-+
-+void NickelAdBlockService::LoadDefaultFilterLists() {
-+  // Bundled EasyList filter rules are compiled into resources.pak as a
-+  // data resource.  In a real build this uses ui::ResourceBundle.
-+  // For now we load from the app directory if present.
-+  base::FilePath app_dir;
-+  if (!base::PathService::Get(chrome::DIR_APP, &app_dir)) {
-+    LOG(WARNING) << "NickelAdBlock: could not find app directory";
-+    return;
++    if (rule.is_exception) {
++      return CosmeticResult{false, true, rule.selector};
++    }
++    result.hidden = true;
++    result.matched_rule = rule.selector;
 +  }
 +
-+  base::FilePath filter_path = app_dir.AppendASCII("nickel_filters.txt");
-+  std::string filter_text;
-+  if (base::ReadFileToString(filter_path, &filter_text)) {
-+    const size_t n = engine_->LoadRules(filter_text);
-+    LOG(INFO) << "NickelAdBlock: loaded " << n << " rules from " << filter_path;
-+  } else {
-+    LOG(WARNING) << "NickelAdBlock: filter file not found at " << filter_path
-+                 << "; ad blocking will be limited until next update";
-+  }
++  return result;
 +}
 +
-+void NickelAdBlockService::ReloadFilterLists(
-+    const std::string& filter_list_text) {
-+  engine_->Clear();
-+  const size_t n = engine_->LoadRules(filter_list_text);
-+  LOG(INFO) << "NickelAdBlock: reloaded " << n << " rules";
-+}
-+
-+bool NickelAdBlockService::ShouldBlock(const GURL& request_url,
-+                                       const GURL& document_url,
-+                                       RequestType type) const {
-+  if (!enabled_) return false;
-+  return engine_->ShouldBlock(request_url, document_url, type).blocked;
-+}
-+
-+void NickelAdBlockService::SetEnabled(bool enabled) {
-+  enabled_ = enabled;
-+  LOG(INFO) << "NickelAdBlock: " << (enabled ? "enabled" : "disabled");
-+}
-+
-+bool NickelAdBlockService::IsEnabled() const {
-+  return enabled_;
-+}
-+
-+}  // namespace adblock
-+}  // namespace nickel
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_throttle.h b/chrome/browser/nickel/adblock/nickel_adblock_throttle.h
++}  // namespace nickel::adblock
+
+diff --git a/src/components/nickel_adblock/adblock_throttle.h b/src/components/nickel_adblock/adblock_throttle.h
 new file mode 100644
-index 0000000..0000000
+index 0000000..7ea3927
 --- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_throttle.h
-@@ -0,0 +1,42 @@
++++ b/src/components/nickel_adblock/adblock_throttle.h
+@@ -0,0 +1,40 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
 +//
 +// nickel_adblock_throttle.h
-+// URLLoaderThrottle that cancels requests matching the ad-block engine.
++// URLLoaderThrottle for Nickel's ad-blocking engine.
 +
-+#ifndef CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_THROTTLE_H_
-+#define CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_THROTTLE_H_
++#ifndef SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_THROTTLE_H_
++#define SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_THROTTLE_H_
 +
-+#include "third_party/blink/public/common/loader/url_loader_throttle.h"
-+#include "url/gurl.h"
++#include <memory>
 +
-+namespace nickel {
-+namespace adblock {
++#include "content/public/browser/url_loader_throttle.h"
++#include "src/components/nickel_adblock/adblock_engine.h"
 +
-+// Installed into the renderer process via
-+// ContentRendererClient::CreateURLLoaderThrottles().
-+// Evaluates each network request against NickelAdBlockService before
-+// the request is sent.
-+class NickelAdBlockThrottle : public blink::URLLoaderThrottle {
++namespace nickel::adblock {
++
++class NickelAdblockThrottle : public content::URLLoaderThrottle {
 + public:
-+  explicit NickelAdBlockThrottle(const GURL& document_url);
-+  ~NickelAdBlockThrottle() override;
++  NickelAdblockThrottle();
++  ~NickelAdblockThrottle() override;
 +
-+  // blink::URLLoaderThrottle:
++  NickelAdblockThrottle(const NickelAdblockThrottle&) = delete;
++  NickelAdblockThrottle& operator=(const NickelAdblockThrottle&) = delete;
++
 +  void WillStartRequest(network::ResourceRequest* request,
 +                        bool* defer) override;
-+  const char* NameForLogging() override;
++  void WillRedirectRequest(network::ResourceRequest* request,
++                           const net::RedirectInfo& redirect_info,
++                           const network::mojom::URLResponseHead& response_head,
++                           bool* defer) override;
 +
 + private:
-+  GURL document_url_;
++  void EvaluateRequest(const network::ResourceRequest& request);
++
++  NickelAdblockEngine* engine_ = nullptr;
 +};
 +
-+}  // namespace adblock
-+}  // namespace nickel
++}  // namespace nickel::adblock
 +
-+#endif  // CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_ADBLOCK_THROTTLE_H_
-diff --git a/chrome/browser/nickel/adblock/nickel_adblock_throttle.cc b/chrome/browser/nickel/adblock/nickel_adblock_throttle.cc
++#endif  // SRC_COMPONENTS_NICKEL_ADBLOCK_ADBLOCK_THROTTLE_H_
+
+diff --git a/src/components/nickel_adblock/adblock_throttle.cc b/src/components/nickel_adblock/adblock_throttle.cc
 new file mode 100644
-index 0000000..0000000
+index 0000000..f73ae0a
 --- /dev/null
-+++ b/chrome/browser/nickel/adblock/nickel_adblock_throttle.cc
-@@ -0,0 +1,84 @@
++++ b/src/components/nickel_adblock/adblock_throttle.cc
+@@ -0,0 +1,87 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
 +//
 +// nickel_adblock_throttle.cc
 +
-+#include "chrome/browser/nickel/adblock/nickel_adblock_throttle.h"
++#include "src/components/nickel_adblock/adblock_throttle.h"
 +
-+#include "chrome/browser/nickel/adblock/nickel_adblock_service.h"
-+#include "services/network/public/cpp/resource_request.h"
-+#include "third_party/blink/public/common/loader/url_loader_throttle.h"
++#include <mutex>
 +
-+namespace nickel {
-+namespace adblock {
++#include "base/no_destructor.h"
++#include "net/base/net_errors.h"
++#include "src/components/nickel_adblock/adblock_filter_list.h"
++#include "url/origin.h"
 +
-+NickelAdBlockThrottle::NickelAdBlockThrottle(const GURL& document_url)
-+    : document_url_(document_url) {}
++namespace nickel::adblock {
 +
-+NickelAdBlockThrottle::~NickelAdBlockThrottle() = default;
++namespace {
 +
-+void NickelAdBlockThrottle::WillStartRequest(
++RequestType ToRequestType(network::mojom::RequestDestination destination) {
++  switch (destination) {
++    case network::mojom::RequestDestination::kScript:
++      return RequestType::kScript;
++    case network::mojom::RequestDestination::kImage:
++      return RequestType::kImage;
++    case network::mojom::RequestDestination::kStyle:
++      return RequestType::kStylesheet;
++    case network::mojom::RequestDestination::kFont:
++      return RequestType::kFont;
++    case network::mojom::RequestDestination::kAudio:
++    case network::mojom::RequestDestination::kVideo:
++      return RequestType::kMedia;
++    case network::mojom::RequestDestination::kDocument:
++    case network::mojom::RequestDestination::kSharedWorker:
++    case network::mojom::RequestDestination::kWorker:
++    case network::mojom::RequestDestination::kServiceWorker:
++      return RequestType::kOther;
++    case network::mojom::RequestDestination::kEmpty:
++    default:
++      return RequestType::kOther;
++  }
++}
++
++NickelAdblockEngine* GetGlobalEngine() {
++  static base::NoDestructor<NickelAdblockEngine> engine;
++  static std::once_flag once;
++  std::call_once(once, [] { engine->LoadRules(kNickelAdblockFilterList); });
++  return engine.get();
++}
++
++}  // namespace
++
++NickelAdblockThrottle::NickelAdblockThrottle() : engine_(GetGlobalEngine()) {}
++
++NickelAdblockThrottle::~NickelAdblockThrottle() = default;
++
++void NickelAdblockThrottle::WillStartRequest(network::ResourceRequest* request,
++                                             bool* defer) {
++  EvaluateRequest(*request);
++}
++
++void NickelAdblockThrottle::WillRedirectRequest(
 +    network::ResourceRequest* request,
++    const net::RedirectInfo& redirect_info,
++    const network::mojom::URLResponseHead& response_head,
 +    bool* defer) {
-+  *defer = false;
++  EvaluateRequest(*request);
++}
 +
-+  auto* service = NickelAdBlockService::GetInstance();
-+  if (!service || !service->IsEnabled()) return;
-+
-+  // Map Chromium ResourceType to our RequestType.
-+  RequestType type = RequestType::kOther;
-+  if (request->destination ==
-+      network::mojom::RequestDestination::kScript) {
-+    type = RequestType::kScript;
-+  } else if (request->destination ==
-+             network::mojom::RequestDestination::kImage) {
-+    type = RequestType::kImage;
-+  } else if (request->destination ==
-+             network::mojom::RequestDestination::kStyle) {
-+    type = RequestType::kStylesheet;
-+  } else if (request->destination ==
-+             network::mojom::RequestDestination::kFont) {
-+    type = RequestType::kFont;
++void NickelAdblockThrottle::EvaluateRequest(
++    const network::ResourceRequest& request) {
++  if (!engine_ || !request.url.SchemeIsHTTPOrHTTPS()) {
++    return;
 +  }
 +
-+  if (service->ShouldBlock(request->url, document_url_, type)) {
-+    VLOG(1) << "NickelAdBlock: blocked " << request->url;
-+    delegate_->CancelWithError(net::ERR_BLOCKED_BY_CLIENT,
-+                               "NickelAdBlock");
++  GURL document_url;
++  if (request.request_initiator.has_value()) {
++    document_url = request.request_initiator->GetURL();
++  }
++
++  FilterResult result = engine_->ShouldBlockRequest(
++      request.url, document_url, ToRequestType(request.destination));
++  if (result.blocked) {
++    CancelWithError(net::ERR_BLOCKED_BY_CLIENT);
 +  }
 +}
 +
-+const char* NickelAdBlockThrottle::NameForLogging() {
-+  return "NickelAdBlockThrottle";
++}  // namespace nickel::adblock
+
+diff --git a/src/components/nickel_adblock/adblock_engine_unittest.cc b/src/components/nickel_adblock/adblock_engine_unittest.cc
+new file mode 100644
+index 0000000..997949f
+--- /dev/null
++++ b/src/components/nickel_adblock/adblock_engine_unittest.cc
+@@ -0,0 +1,65 @@
++// Copyright (c) 2026 Nickel Browser Project
++// Use of this source code is governed by a BSD-3-Clause license.
++
++#include "src/components/nickel_adblock/adblock_engine.h"
++
++#include "testing/gtest/include/gtest/gtest.h"
++#include "url/gurl.h"
++
++namespace nickel::adblock {
++
++namespace {
++
++constexpr char kTestList[] = R"(
++! Network rules
++||ads.test^$script,third-party
++@@||ads.test/allow^$script
++||tracking.test^$image
++
++! Cosmetic rules
++example.com##.ad-slot
++##.sponsored
++#@#example.com##.sponsored
++)";
++
++}  // namespace
++
++TEST(NickelAdblockEngineTest, BlocksNetworkRequests) {
++  NickelAdblockEngine engine;
++  engine.LoadRules(kTestList);
++
++  FilterResult blocked = engine.ShouldBlockRequest(
++      GURL("https://ads.test/banner.js"), GURL("https://news.example.com"),
++      RequestType::kScript);
++  EXPECT_TRUE(blocked.blocked);
++
++  FilterResult allowed = engine.ShouldBlockRequest(
++      GURL("https://ads.test/allow/script.js"), GURL("https://news.example.com"),
++      RequestType::kScript);
++  EXPECT_FALSE(allowed.blocked);
++
++  FilterResult image_blocked = engine.ShouldBlockRequest(
++      GURL("https://tracking.test/pixel.png"), GURL("https://example.com"),
++      RequestType::kImage);
++  EXPECT_TRUE(image_blocked.blocked);
 +}
 +
-+}  // namespace adblock
-+}  // namespace nickel
--- 
-2.40.0
++TEST(NickelAdblockEngineTest, AppliesCosmeticRules) {
++  NickelAdblockEngine engine;
++  engine.LoadRules(kTestList);
++
++  CosmeticResult hide = engine.ShouldHideElement(GURL("https://example.com"),
++                                                 ".ad-slot");
++  EXPECT_TRUE(hide.hidden);
++
++  CosmeticResult generic_hide =
++      engine.ShouldHideElement(GURL("https://foo.example"), ".sponsored");
++  EXPECT_TRUE(generic_hide.hidden);
++
++  CosmeticResult exception =
++      engine.ShouldHideElement(GURL("https://example.com"), ".sponsored");
++  EXPECT_TRUE(exception.exception);
++  EXPECT_FALSE(exception.hidden);
++}
++
++}  // namespace nickel::adblock
+
+diff --git a/src/components/nickel_adblock/BUILD.gn b/src/components/nickel_adblock/BUILD.gn
+new file mode 100644
+index 0000000..7087f62
+--- /dev/null
++++ b/src/components/nickel_adblock/BUILD.gn
+@@ -0,0 +1,37 @@
++import("//build/test/test.gni")
++
++source_set("nickel_adblock") {
++  sources = [
++    "adblock_engine.cc",
++    "adblock_engine.h",
++    "adblock_filter_list.h",
++    "adblock_throttle.cc",
++    "adblock_throttle.h",
++  ]
++
++  public = [
++    "adblock_engine.h",
++    "adblock_throttle.h",
++  ]
++
++  include_dirs = [ "//src" ]
++
++  deps = [
++    "//base",
++    "//content/public/browser",
++    "//net",
++    "//url",
++  ]
++}
++
++test("nickel_adblock_unittests") {
++  sources = [ "adblock_engine_unittest.cc" ]
++  include_dirs = [ "//src" ]
++  deps = [
++    ":nickel_adblock",
++    "//base",
++    "//net",
++    "//testing/gtest",
++    "//url",
++  ]
++}
+
+diff --git a/chrome/browser/net/profile_network_context_service.cc b/chrome/browser/net/profile_network_context_service.cc
+index 0000000..0000000 100644
+--- a/chrome/browser/net/profile_network_context_service.cc
++++ b/chrome/browser/net/profile_network_context_service.cc
+@@
++#include "src/components/nickel_adblock/adblock_throttle.h"
+@@
+ std::vector<std::unique_ptr<content::URLLoaderThrottle>>
+ ProfileNetworkContextService::CreateURLLoaderThrottles(
+     const network::ResourceRequest& request,
+     content::BrowserContext* browser_context,
+     int render_process_id,
+     int render_frame_id) {
+   std::vector<std::unique_ptr<content::URLLoaderThrottle>> throttles;
++  throttles.push_back(
++      std::make_unique<nickel::adblock::NickelAdblockThrottle>());
+   return throttles;
+ }
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 0000000..0000000 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@
+   deps += [
++    "//src/components/nickel_adblock:nickel_adblock",
+   ]

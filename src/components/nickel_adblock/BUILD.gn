@@ -1,0 +1,37 @@
+import("//build/test/test.gni")
+
+source_set("nickel_adblock") {
+  sources = [
+    "adblock_engine.cc",
+    "adblock_engine.h",
+    "adblock_filter_list.h",
+    "adblock_throttle.cc",
+    "adblock_throttle.h",
+  ]
+
+  public = [
+    "adblock_engine.h",
+    "adblock_throttle.h",
+  ]
+
+  include_dirs = [ "//src" ]
+
+  deps = [
+    "//base",
+    "//content/public/browser",
+    "//net",
+    "//url",
+  ]
+}
+
+test("nickel_adblock_unittests") {
+  sources = [ "adblock_engine_unittest.cc" ]
+  include_dirs = [ "//src" ]
+  deps = [
+    ":nickel_adblock",
+    "//base",
+    "//net",
+    "//testing/gtest",
+    "//url",
+  ]
+}

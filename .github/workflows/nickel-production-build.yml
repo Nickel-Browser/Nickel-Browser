@@ -100,8 +100,9 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # Security: pin actions to immutable SHAs to protect supply-chain integrity.
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -133,7 +134,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 1
 
@@ -164,7 +165,8 @@ jobs:
             LATEST=""
             
             while [ $retry_count -lt $max_retries ]; do
-              LATEST=$(curl -sf --connect-timeout 30 --max-time 120 \
+              # Security: enforce HTTPS and fail-closed API calls (Secure Transport).
+              LATEST=$(curl -sS --fail --proto '=https' --retry 3 --connect-timeout 30 --max-time 120 \
                 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" \
                 | jq -r '.tag_name // empty')
@@ -208,7 +210,8 @@ jobs:
           LATEST=""
           
           while [ $retry_count -lt $max_retries ]; do
-            LATEST=$(curl -sf --connect-timeout 30 --max-time 120 \
+            # Security: enforce HTTPS and fail-closed API calls (Secure Transport).
+            LATEST=$(curl -sS --fail --proto '=https' --retry 3 --connect-timeout 30 --max-time 120 \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/repos/ungoogled-software/ungoogled-chromium-binaries/releases/latest" \
               | jq -r '.tag_name // empty')
@@ -282,13 +285,13 @@ jobs:
     
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           submodules: recursive
           persist-credentials: false
 
       - name: 💾 Maximize Disk Space
-        uses: easimon/maximize-build-space@v10
+        uses: easimon/maximize-build-space@fc881a613ad2a34aca9c9624518214ebc21dfc0c
         with:
           root-reserve-mb: 8192
           swap-size-mb: 4096
@@ -309,13 +312,8 @@ jobs:
             libcups2-dev libdrm-dev mesa-common-dev libgbm-dev libssl-dev \
             libnss3-dev libffi-dev gperf bison flex libnss3-dev
 
-      - name: 📦 Setup Depot Tools
-        run: |
-          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
-          echo "$HOME/depot_tools" >> "$GITHUB_PATH"
-
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -323,54 +321,13 @@ jobs:
           restore-keys: |
             uc-binary-linux-
 
-      - name: ⬇️ Download UC Binary (with retry)
-        if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
+      - name: 🧱 Run Nickel build pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NICKEL_VERSION: ${{ needs.prepare.outputs.nickel_version }}
         run: |
           set -euo pipefail
-          
-          max_attempts=5
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Download attempt $attempt of $max_attempts..."
-            
-            if chmod +x scripts/download-uc-binary.sh && \
-               GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-               ./scripts/download-uc-binary.sh linux "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
-              echo "✅ Download successful on attempt $attempt"
-              exit 0
-            fi
-            
-            echo "⚠️ Attempt $attempt failed"
-            attempt=$((attempt + 1))
-            
-            if [ $attempt -le $max_attempts ]; then
-              sleep_time=$((attempt * 15))
-              echo "Waiting ${sleep_time}s before retry..."
-              sleep $sleep_time
-            fi
-          done
-          
-          echo "❌ Failed to download after $max_attempts attempts"
-          exit 1
-
-      - name: 🔧 Apply Branding & Package
-        run: |
-          set -euo pipefail
-          
-          chmod +x scripts/apply-nickel-branding.sh scripts/build-deb.sh
-          
-          export NICKEL_DIR="${{ github.workspace }}"
-          export BINARY_DIR="${{ env.BINARY_DIR }}"
-          export NICKEL_VERSION="${{ needs.prepare.outputs.nickel_version }}"
-          
-          ./scripts/apply-nickel-branding.sh
-          ./scripts/build-deb.sh
-          
-          mkdir -p "${{ github.workspace }}/dist"
-          mv *.deb "${{ github.workspace }}/dist/" 2>/dev/null || true
-          cd "${{ github.workspace }}/dist"
-          sha256sum * > checksums-linux.sha256 || true
+          python3 build/run_build.py --platform linux --chromium-version "${{ needs.prepare.outputs.uc_version }}"
 
       - name: ✅ Verify Artifacts
         run: |
@@ -401,7 +358,7 @@ jobs:
           fi
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nickel-linux-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -411,7 +368,7 @@ jobs:
 
       - name: 🐛 Upload Debug Info on Failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: debug-linux-${{ github.run_id }}
           path: |
@@ -436,13 +393,13 @@ jobs:
     
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           submodules: recursive
           persist-credentials: false
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -450,49 +407,13 @@ jobs:
           restore-keys: |
             uc-binary-macos-
 
-      - name: ⬇️ Download UC Binary (with retry)
-        if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
+      - name: 🧱 Run Nickel build pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NICKEL_VERSION: ${{ needs.prepare.outputs.nickel_version }}
         run: |
           set -euo pipefail
-          
-          max_attempts=5
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Download attempt $attempt of $max_attempts..."
-            
-            if chmod +x scripts/download-uc-binary.sh && \
-               GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-               ./scripts/download-uc-binary.sh macos "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
-              echo "✅ Download successful on attempt $attempt"
-              exit 0
-            fi
-            
-            echo "⚠️ Attempt $attempt failed"
-            attempt=$((attempt + 1))
-            sleep $((attempt * 15))
-          done
-          
-          echo "❌ Failed to download after $max_attempts attempts"
-          exit 1
-
-      - name: 🔧 Build macOS DMG
-        run: |
-          set -euo pipefail
-          
-          chmod +x scripts/apply-nickel-branding.sh scripts/build-dmg.sh
-          
-          export NICKEL_DIR="${{ github.workspace }}"
-          export BINARY_DIR="${{ env.BINARY_DIR }}"
-          export NICKEL_VERSION="${{ needs.prepare.outputs.nickel_version }}"
-          
-          ./scripts/apply-nickel-branding.sh
-          ./scripts/build-dmg.sh
-          
-          mkdir -p "${{ github.workspace }}/dist"
-          mv *.dmg "${{ github.workspace }}/dist/" 2>/dev/null || true
-          cd "${{ github.workspace }}/dist"
-          shasum -a 256 * > checksums-macos.sha256 || true
+          python3 build/run_build.py --platform macos --chromium-version "${{ needs.prepare.outputs.uc_version }}"
 
       - name: ✅ Verify Artifacts
         run: |
@@ -520,7 +441,7 @@ jobs:
           [ "$found" = true ] || { echo "❌ No .dmg files found"; exit 1; }
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nickel-macos-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -530,7 +451,7 @@ jobs:
 
       - name: 🐛 Upload Debug Info on Failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: debug-macos-${{ github.run_id }}
           path: |
@@ -555,13 +476,13 @@ jobs:
     
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           submodules: recursive
           persist-credentials: false
 
       - name: 🔄 Cache UC Binary
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         id: uc-cache
         with:
           path: ${{ env.BINARY_DIR }}
@@ -569,51 +490,14 @@ jobs:
           restore-keys: |
             uc-binary-windows-
 
-      - name: ⬇️ Download UC Binary (with retry)
-        if: steps.uc-cache.outputs.cache-hit != 'true' || github.event.inputs.skip_cache == 'true'
+      - name: 🧱 Run Nickel build pipeline
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NICKEL_VERSION: ${{ needs.prepare.outputs.nickel_version }}
         run: |
           set -euo pipefail
-          
-          max_attempts=5
-          attempt=1
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "Download attempt $attempt of $max_attempts..."
-            
-            if chmod +x scripts/download-uc-binary.sh && \
-               GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-               ./scripts/download-uc-binary.sh windows "${{ needs.prepare.outputs.uc_version }}" "${{ env.BINARY_DIR }}"; then
-              echo "✅ Download successful on attempt $attempt"
-              exit 0
-            fi
-            
-            echo "⚠️ Attempt $attempt failed"
-            attempt=$((attempt + 1))
-            sleep $((attempt * 15))
-          done
-          
-          echo "❌ Failed to download after $max_attempts attempts"
-          exit 1
-
-      - name: 🔧 Build Windows Installer
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          chmod +x scripts/apply-nickel-branding.sh scripts/build-windows-installer.sh
-          
-          export NICKEL_DIR="${{ github.workspace }}"
-          export BINARY_DIR="${{ env.BINARY_DIR }}"
-          export NICKEL_VERSION="${{ needs.prepare.outputs.nickel_version }}"
-          
-          ./scripts/apply-nickel-branding.sh
-          ./scripts/build-windows-installer.sh
-          
-          mkdir -p "${{ github.workspace }}/dist"
-          mv *.exe "${{ github.workspace }}/dist/" 2>/dev/null || true
-          cd "${{ github.workspace }}/dist"
-          sha256sum * > checksums-windows.sha256 || true
+          python3 build/run_build.py --platform windows --chromium-version "${{ needs.prepare.outputs.uc_version }}"
 
       - name: ✅ Verify Artifacts
         shell: bash
@@ -642,7 +526,7 @@ jobs:
           [ "$found" = true ] || { echo "❌ No .exe files found"; exit 1; }
 
       - name: 📤 Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nickel-windows-${{ needs.prepare.outputs.uc_version }}
           path: dist/
@@ -652,7 +536,7 @@ jobs:
 
       - name: 🐛 Upload Debug Info on Failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: debug-windows-${{ github.run_id }}
           path: |
@@ -662,24 +546,58 @@ jobs:
           if-no-files-found: ignore
 
   # ==========================================================================
-  # JOB 5: CREATE RELEASE
+  # JOB 5: INTEGRATION TEST
+  # ==========================================================================
+  test:
+    name: 🧪 Integration Test (Linux)
+    needs: [prepare, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 1
+
+      - name: 📥 Download Linux Artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: nickel-linux-${{ needs.prepare.outputs.uc_version }}
+          path: artifacts
+
+      - name: 🛠️ Install Runtime Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libnss3 libxss1 libasound2 libxtst6
+
+      - name: 🧪 Run Nickel Browser Tests
+        env:
+          NICKEL_BROWSER_BIN: ${{ github.workspace }}/extracted/opt/nickel-browser/nickel-browser
+        run: |
+          set -euo pipefail
+          dpkg-deb -x artifacts/*.deb extracted
+          python3 tests/test_nickel_browser.py
+
+  # ==========================================================================
+  # JOB 6: CREATE RELEASE
   # ==========================================================================
   release:
     name: 🚀 Create Release
-    needs: [prepare, build-linux, build-macos, build-windows]
+    needs: [prepare, build-linux, build-macos, build-windows, test]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: 📥 Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           path: artifacts
           merge-multiple: true
@@ -696,7 +614,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: 🚀 Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: ${{ github.ref_name }}
           name: "Nickel Browser ${{ needs.prepare.outputs.release_name }}"

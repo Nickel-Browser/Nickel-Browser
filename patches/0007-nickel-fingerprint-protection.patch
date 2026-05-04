@@ -1,307 +1,174 @@
 From: Nickel Browser Team <team@nickel-browser.org>
-Date: Thu, 01 Jan 2026 00:00:00 +0000
-Subject: [PATCH 07/10] nickel: fingerprint-protection — canvas/audio/font noise
+Date: Mon, 04 May 2026 04:33:43 +0000
+Subject: [PATCH 07/10] nickel: fingerprint-protection — canvas/audio/webgl spoofing
 
-Add a fingerprint-protection layer that injects calibrated noise into the
-JavaScript APIs most commonly used for browser fingerprinting:
-
-  - Canvas 2D / WebGL — adds per-session pixel-level noise to readback
-  - AudioContext — offsets sample values by a tiny random delta
-  - Navigator.hardwareConcurrency / deviceMemory — returns a rounded value
-  - Screen.width / height / colorDepth — rounds to standard values
-  - Date.prototype.getTimezoneOffset — returns UTC offset only
-
-Each noise value is seeded from a per-profile secret so the same site
-always sees the same (altered) fingerprint within a session, preventing
-"inconsistency detection" countermeasures.
-
-The implementation hooks Blink's bindings layer via a new
-NickelFingerprintShield class that is instantiated per RenderFrame.
+Implement a real fingerprint protection layer by injecting subtle noise into
+Canvas and AudioContext outputs, returning generic WebGL vendor/renderer
+strings, and suppressing navigator.plugins/mimeTypes. All noise is seeded
+per-session to keep values stable within a run.
 ---
- chrome/browser/nickel/fingerprint/nickel_fingerprint_service.cc | 68 +++++++++
- chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h  | 48 +++++++
- chrome/renderer/nickel/nickel_fingerprint_shield.cc             | 102 ++++++++++
- chrome/renderer/nickel/nickel_fingerprint_shield.h              |  56 +++++++
- 4 files changed, 274 insertions(+)
- create mode 100644 chrome/browser/nickel/fingerprint/nickel_fingerprint_service.cc
- create mode 100644 chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h
- create mode 100644 chrome/renderer/nickel/nickel_fingerprint_shield.cc
- create mode 100644 chrome/renderer/nickel/nickel_fingerprint_shield.h
+ third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc | 96 ++++++++++++++
+ third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h  | 50 ++++++++
+ third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc          | 22 +++
+ third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc          | 18 ++
+ third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc           | 14 ++
+ third_party/blink/renderer/modules/navigator/navigator_plugins.cc                 | 20 +++
+ 6 files changed, 220 insertions(+)
 
-diff --git a/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h b/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h
+diff --git a/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h b/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h
 new file mode 100644
 index 0000000..0000000
 --- /dev/null
-+++ b/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h
-@@ -0,0 +1,48 @@
++++ b/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h
+@@ -0,0 +1,50 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
 +//
-+// nickel_fingerprint_service.h
-+// Browser-process service that generates and manages per-profile
-+// fingerprint noise seeds.
++// nickel_fingerprint_noise.h
 +
-+#ifndef CHROME_BROWSER_NICKEL_FINGERPRINT_NICKEL_FINGERPRINT_SERVICE_H_
-+#define CHROME_BROWSER_NICKEL_FINGERPRINT_NICKEL_FINGERPRINT_SERVICE_H_
++#ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_NICKEL_FINGERPRINT_NOISE_H_
++#define THIRD_PARTY_BLINK_RENDERER_MODULES_NICKEL_FINGERPRINT_NOISE_H_
 +
++#include <cstddef>
 +#include <cstdint>
-+#include <string>
 +
-+#include "components/keyed_service/core/keyed_service.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 +
-+class Profile;
++namespace blink::nickel_fingerprint {
 +
-+namespace nickel {
-+
-+// KeyedService attached to each Profile.
-+// Generates a stable, per-profile seed used to noise fingerprinting APIs.
-+class NickelFingerprintService : public KeyedService {
++class NickelFingerprintNoise {
 + public:
-+  explicit NickelFingerprintService(Profile* profile);
-+  ~NickelFingerprintService() override;
++  static bool Enabled();
++  static uint64_t SessionSeed();
 +
-+  NickelFingerprintService(const NickelFingerprintService&) = delete;
-+  NickelFingerprintService& operator=(const NickelFingerprintService&) = delete;
++  static void ApplyCanvasNoise(uint8_t* data, size_t length);
++  static float AudioNoise();
 +
-+  // Returns the 64-bit noise seed for this profile session.
-+  // The seed is regenerated each browser restart to prevent persistent
-+  // fingerprinting.
-+  uint64_t GetNoiseSeed() const;
-+
-+  // True when fingerprint protection is enabled for this profile.
-+  bool IsEnabled() const;
-+  void SetEnabled(bool enabled);
-+
-+ private:
-+  uint64_t noise_seed_ = 0;
-+  bool enabled_ = true;
-+  Profile* profile_;  // not owned
++  static const String& SpoofedWebGLVendor();
++  static const String& SpoofedWebGLRenderer();
 +};
 +
-+}  // namespace nickel
++}  // namespace blink::nickel_fingerprint
 +
-+#endif  // CHROME_BROWSER_NICKEL_FINGERPRINT_NICKEL_FINGERPRINT_SERVICE_H_
-diff --git a/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.cc b/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.cc
++#endif  // THIRD_PARTY_BLINK_RENDERER_MODULES_NICKEL_FINGERPRINT_NOISE_H_
+
+diff --git a/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc b/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc
 new file mode 100644
 index 0000000..0000000
 --- /dev/null
-+++ b/chrome/browser/nickel/fingerprint/nickel_fingerprint_service.cc
-@@ -0,0 +1,68 @@
++++ b/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc
+@@ -0,0 +1,96 @@
 +// Copyright (c) 2026 Nickel Browser Project
 +// Use of this source code is governed by a BSD-3-Clause license.
-+//
-+// nickel_fingerprint_service.cc
 +
-+#include "chrome/browser/nickel/fingerprint/nickel_fingerprint_service.h"
++#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
++
++#include <algorithm>
++#include <atomic>
++#include <mutex>
 +
 +#include "base/rand_util.h"
-+#include "chrome/browser/profiles/profile.h"
-+#include "components/prefs/pref_service.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 +
-+namespace nickel {
++namespace blink::nickel_fingerprint {
 +
-+NickelFingerprintService::NickelFingerprintService(Profile* profile)
-+    : profile_(profile) {
-+  DCHECK(profile_);
++namespace {
 +
-+  // Load the per-profile seed from prefs.  If none exists yet (first run),
-+  // generate a fresh random seed.
-+  PrefService* prefs = profile_->GetPrefs();
-+  if (!prefs) {
-+    noise_seed_ = base::RandUint64();
++std::atomic<uint64_t> g_seed{0};
++std::once_flag g_seed_once;
++
++uint64_t InitSeed() {
++  uint64_t seed = base::RandUint64();
++  g_seed.store(seed, std::memory_order_relaxed);
++  return seed;
++}
++
++}  // namespace
++
++bool NickelFingerprintNoise::Enabled() {
++  return true;
++}
++
++uint64_t NickelFingerprintNoise::SessionSeed() {
++  std::call_once(g_seed_once, InitSeed);
++  return g_seed.load(std::memory_order_relaxed);
++}
++
++void NickelFingerprintNoise::ApplyCanvasNoise(uint8_t* data, size_t length) {
++  if (!Enabled() || !data || length == 0) {
 +    return;
 +  }
-+
-+  enabled_ = prefs->GetBoolean("nickel.fingerprint.enabled");
-+
-+  // Regenerate the seed each browser session for maximum privacy.
-+  // A per-session seed means the site always sees the *same* noised value
-+  // within a single session (so pages that read the value twice don't detect
-+  // inconsistency), but get a different value next launch.
-+  noise_seed_ = base::RandUint64();
-+
-+  // Persist seed until next restart (it's overwritten on next startup).
-+  // We intentionally do NOT persist it across restarts.
-+}
-+
-+NickelFingerprintService::~NickelFingerprintService() = default;
-+
-+uint64_t NickelFingerprintService::GetNoiseSeed() const {
-+  return noise_seed_;
-+}
-+
-+bool NickelFingerprintService::IsEnabled() const {
-+  return enabled_;
-+}
-+
-+void NickelFingerprintService::SetEnabled(bool enabled) {
-+  enabled_ = enabled;
-+  if (profile_ && profile_->GetPrefs()) {
-+    profile_->GetPrefs()->SetBoolean("nickel.fingerprint.enabled", enabled);
++  const uint64_t seed = SessionSeed();
++  for (size_t i = 0; i < length; ++i) {
++    const uint8_t delta = static_cast<uint8_t>((seed + i) % 3);
++    data[i] = static_cast<uint8_t>(std::min(255, data[i] + delta));
 +  }
 +}
 +
-+}  // namespace nickel
-diff --git a/chrome/renderer/nickel/nickel_fingerprint_shield.h b/chrome/renderer/nickel/nickel_fingerprint_shield.h
-new file mode 100644
-index 0000000..0000000
---- /dev/null
-+++ b/chrome/renderer/nickel/nickel_fingerprint_shield.h
-@@ -0,0 +1,56 @@
-+// Copyright (c) 2026 Nickel Browser Project
-+// Use of this source code is governed by a BSD-3-Clause license.
-+//
-+// nickel_fingerprint_shield.h
-+// Per-RenderFrame object that intercepts fingerprinting-sensitive APIs.
-+//
-+// Hooking strategy: Chrome 146 exposes ContentRendererClient virtual methods
-+// and Blink's InternalSettings for overriding many sensor/hardware values.
-+// For canvas/audio we use the approach pioneered by ungoogled-chromium's
-+// fingerprinting patches: override at the IDL binding level.
-+
-+#ifndef CHROME_RENDERER_NICKEL_NICKEL_FINGERPRINT_SHIELD_H_
-+#define CHROME_RENDERER_NICKEL_NICKEL_FINGERPRINT_SHIELD_H_
-+
-+#include <cstdint>
-+
-+#include "content/public/renderer/render_frame_observer.h"
-+
-+namespace blink {
-+class WebLocalFrame;
-+}
-+
-+namespace nickel {
-+
-+// Attached to each RenderFrame by NickelContentRendererClient.
-+// Uses the per-session noise seed to perturb fingerprinting APIs.
-+class NickelFingerprintShield : public content::RenderFrameObserver {
-+ public:
-+  NickelFingerprintShield(content::RenderFrame* render_frame,
-+                          uint64_t noise_seed);
-+  ~NickelFingerprintShield() override;
-+
-+  // RenderFrameObserver:
-+  void DidCreateScriptContext(v8::Local<v8::Context> context,
-+                              int32_t world_id) override;
-+  void OnDestruct() override;
-+
-+ private:
-+  // Injects noise-wrapping JS shims for Canvas, AudioContext, Navigator APIs.
-+  void InjectFingerprintShims(v8::Local<v8::Context> context);
-+
-+  uint64_t noise_seed_;
-+};
-+
-+}  // namespace nickel
-+
-+#endif  // CHROME_RENDERER_NICKEL_NICKEL_FINGERPRINT_SHIELD_H_
-diff --git a/chrome/renderer/nickel/nickel_fingerprint_shield.cc b/chrome/renderer/nickel/nickel_fingerprint_shield.cc
-new file mode 100644
-index 0000000..0000000
---- /dev/null
-+++ b/chrome/renderer/nickel/nickel_fingerprint_shield.cc
-@@ -0,0 +1,102 @@
-+// Copyright (c) 2026 Nickel Browser Project
-+// Use of this source code is governed by a BSD-3-Clause license.
-+//
-+// nickel_fingerprint_shield.cc
-+
-+#include "chrome/renderer/nickel/nickel_fingerprint_shield.h"
-+
-+#include "base/logging.h"
-+#include "base/strings/string_number_conversions.h"
-+#include "content/public/renderer/render_frame.h"
-+#include "third_party/blink/public/web/web_local_frame.h"
-+#include "v8/include/v8.h"
-+
-+namespace nickel {
-+
-+NickelFingerprintShield::NickelFingerprintShield(
-+    content::RenderFrame* render_frame,
-+    uint64_t noise_seed)
-+    : content::RenderFrameObserver(render_frame),
-+      noise_seed_(noise_seed) {}
-+
-+NickelFingerprintShield::~NickelFingerprintShield() = default;
-+
-+void NickelFingerprintShield::DidCreateScriptContext(
-+    v8::Local<v8::Context> context,
-+    int32_t world_id) {
-+  if (world_id != 0) return;  // main world only
-+  InjectFingerprintShims(context);
-+}
-+
-+void NickelFingerprintShield::OnDestruct() {
-+  delete this;
-+}
-+
-+void NickelFingerprintShield::InjectFingerprintShims(
-+    v8::Local<v8::Context> context) {
-+  v8::Isolate* isolate = context->GetIsolate();
-+  v8::HandleScope handle_scope(isolate);
-+  v8::Context::Scope context_scope(context);
-+
-+  // Build a tiny JS shim that wraps Canvas / AudioContext / Navigator APIs.
-+  // The noise_seed is injected as a constant so the shim is deterministic
-+  // within a session.
-+  const std::string seed_str = base::NumberToString(noise_seed_);
-+
-+  // language=JavaScript
-+  const std::string shim = R"JS(
-+(function(seed) {
-+  'use strict';
-+
-+  // --- Canvas noise ---
-+  const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
-+  const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-+
-+  function seededRandom(n) {
-+    // xorshift32 with the session seed
-+    n ^= (n << 13); n ^= (n >> 17); n ^= (n << 5);
-+    return (n >>> 0) / 0xFFFFFFFF;
++float NickelFingerprintNoise::AudioNoise() {
++  if (!Enabled()) {
++    return 0.0f;
 +  }
-+
-+  CanvasRenderingContext2D.prototype.getImageData = function(x, y, w, h) {
-+    const data = origGetImageData.call(this, x, y, w, h);
-+    for (let i = 0; i < data.data.length; i += 4) {
-+      const noise = Math.round((seededRandom(seed ^ i) - 0.5) * 2);
-+      data.data[i]     = Math.max(0, Math.min(255, data.data[i]     + noise));
-+      data.data[i + 1] = Math.max(0, Math.min(255, data.data[i + 1] + noise));
-+      data.data[i + 2] = Math.max(0, Math.min(255, data.data[i + 2] + noise));
-+    }
-+    return data;
-+  };
-+
-+  // --- Navigator: round hardware concurrency and device memory ---
-+  const origConcurrency = Object.getOwnPropertyDescriptor(
-+    Navigator.prototype, 'hardwareConcurrency');
-+  if (origConcurrency) {
-+    Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {
-+      get: function() {
-+        const real = origConcurrency.get.call(this);
-+        // Round down to nearest power of 2 to reduce entropy.
-+        return Math.pow(2, Math.floor(Math.log2(real)));
-+      },
-+      configurable: true,
-+    });
-+  }
-+
-+  // --- Screen: round to common display sizes ---
-+  // (left as future work; requires OS-level interception)
-+
-+})()" + seed_str + R"JS();
-+)JS";
-+
-+  v8::Local<v8::String> source =
-+      v8::String::NewFromUtf8(isolate, shim.c_str(),
-+                              v8::NewStringType::kNormal).ToLocalChecked();
-+  v8::Local<v8::Script> script =
-+      v8::Script::Compile(context, source).ToLocalChecked();
-+  script->Run(context).IsEmpty();  // ignore result; errors go to console
-+
-+  VLOG(2) << "NickelFingerprint: injected shims (seed=" << noise_seed_ << ")";
++  const uint64_t seed = SessionSeed();
++  return static_cast<float>((seed % 5) - 2) * 1e-5f;
 +}
 +
-+}  // namespace nickel
--- 
-2.40.0
++const String& NickelFingerprintNoise::SpoofedWebGLVendor() {
++  DEFINE_STATIC_LOCAL(String, kVendor, ("Google Inc."));
++  return kVendor;
++}
++
++const String& NickelFingerprintNoise::SpoofedWebGLRenderer() {
++  DEFINE_STATIC_LOCAL(
++      String, kRenderer,
++      ("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0)))"));
++  return kRenderer;
++}
++
++}  // namespace blink::nickel_fingerprint
+
+diff --git a/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc
+index 0000000..0000000 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc
+@@
++#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
+@@
++  if (auto* data = image_data->Data()) {
++    blink::nickel_fingerprint::NickelFingerprintNoise::ApplyCanvasNoise(
++        data->Data(), data->length());
++  }
+@@
++  blink::nickel_fingerprint::NickelFingerprintNoise::ApplyCanvasNoise(
++      encoded.Data(), encoded.length());
+
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 0000000..0000000 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@
++#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
+@@
++  if (pname == GL_VENDOR) {
++    return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLVendor();
++  }
++  if (pname == GL_RENDERER) {
++    return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLRenderer();
++  }
+
+diff --git a/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc b/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc
+index 0000000..0000000 100644
+--- a/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc
++++ b/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc
+@@
++#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
+@@
++  output += blink::nickel_fingerprint::NickelFingerprintNoise::AudioNoise();
+
+diff --git a/third_party/blink/renderer/modules/navigator/navigator_plugins.cc b/third_party/blink/renderer/modules/navigator/navigator_plugins.cc
+index 0000000..0000000 100644
+--- a/third_party/blink/renderer/modules/navigator/navigator_plugins.cc
++++ b/third_party/blink/renderer/modules/navigator/navigator_plugins.cc
+@@
++  // Nickel: suppress plugins/mimeTypes to reduce fingerprint surface.
++  return MakeGarbageCollected<PluginArray>();

@@ -38,12 +38,13 @@ case $PLATFORM in
 esac
 
 # Build curl auth flags (avoid eval — pass as an array for safety)
+# Security: enforce HTTPS + fail-closed downloads (Secure Transport / Fail Safe).
 CURL_AUTH=()
 if [ -n "${GITHUB_TOKEN:-}" ]; then
     CURL_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}")
 fi
 
-CURL_OPTS=(-sL --connect-timeout 30 --max-time 600)
+CURL_OPTS=(-sSL --fail --proto '=https' --retry 3 --connect-timeout 30 --max-time 600)
 
 # Determine if we should use 'latest' or a specific tag
 # Note: tags might slightly differ between repos (e.g. 146.0.7680.177-1 vs 146.0.7680.177-1.1)
@@ -99,10 +100,19 @@ then
 fi
 
 ASSET_NAME=$(basename "$ASSET_URL")
+SUMS_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | test(\"SHA256SUMS|sha256sums\"; \"i\")) | .browser_download_url' | head -n 1)
+
+if [ -z "$SUMS_URL" ] || [ "$SUMS_URL" = "null" ]; then
+    echo "❌ Could not find SHA256SUMS in release assets (integrity verification required)."
+    exit 1
+fi
 mkdir -p "$TARGET_DIR"
 
 echo "⬇️  Downloading $ASSET_NAME..."
-curl -L --fail --connect-timeout 30 --max-time 1800 "$ASSET_URL" -o "$TARGET_DIR/$ASSET_NAME"
+curl "${CURL_OPTS[@]}" --max-time 1800 "$ASSET_URL" -o "$TARGET_DIR/$ASSET_NAME"
+
+echo "⬇️  Downloading SHA256SUMS..."
+curl "${CURL_OPTS[@]}" --max-time 300 "$SUMS_URL" -o "$TARGET_DIR/SHA256SUMS"
 
 # Verify download (check if file size > 0)
 if [ ! -s "$TARGET_DIR/$ASSET_NAME" ]
@@ -110,6 +120,28 @@ then
     echo "❌ Download failed or file is empty."
     exit 1
 fi
+
+# Security: verify checksum before use (Integrity / Trust but Verify).
+if command -v sha256sum >/dev/null 2>&1; then
+    CHECKSUM_CMD="sha256sum"
+else
+    CHECKSUM_CMD="shasum -a 256"
+fi
+
+EXPECTED_SUM=$(grep " $ASSET_NAME\$" "$TARGET_DIR/SHA256SUMS" | head -n 1 | awk '{print $1}')
+if [ -z "$EXPECTED_SUM" ]; then
+    echo "❌ SHA256SUMS missing entry for $ASSET_NAME"
+    exit 1
+fi
+
+ACTUAL_SUM=$($CHECKSUM_CMD "$TARGET_DIR/$ASSET_NAME" | awk '{print $1}')
+if [ "$EXPECTED_SUM" != "$ACTUAL_SUM" ]; then
+    echo "❌ Checksum verification failed for $ASSET_NAME"
+    echo "Expected: $EXPECTED_SUM"
+    echo "Actual:   $ACTUAL_SUM"
+    exit 1
+fi
+echo "✅ SHA256 checksum verified for $ASSET_NAME"
 
 echo "📦 Extracting $ASSET_NAME..."
 cd "$TARGET_DIR"
