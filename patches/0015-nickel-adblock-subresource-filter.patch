@@ -1,0 +1,57 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 15/17] nickel: adblock-subresource-filter — Integration logic
+
+---
+ chrome/browser/nickel/adblock/nickel_subresource_filter_driver.cc | 45 ++++++++++++++++++++++
+ chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h  | 25 ++++++++++++
+ 2 files changed, 70 insertions(+)
+ create mode 100644 chrome/browser/nickel/adblock/nickel_subresource_filter_driver.cc
+ create mode 100644 chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h
+
+diff --git a/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.cc b/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.cc
+new file mode 100644
+index 0000000..aabbccdd
+--- /dev/null
++++ b/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.cc
+@@ -0,0 +1,45 @@
++#include "chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h"
++#include "components/subresource_filter/content/browser/ruleset_service.h"
++#include "components/subresource_filter/core/browser/ruleset_publisher.h"
++
++namespace nickel {
++
++NickelSubresourceFilterDriver::NickelSubresourceFilterDriver() = default;
++NickelSubresourceFilterDriver::~NickelSubresourceFilterDriver() = default;
++
++void NickelSubresourceFilterDriver::Initialize(subresource_filter::RulesetService* service) {
++  // Setup EasyList downloads and rule feeding
++}
++
++} // namespace nickel
+diff --git a/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h b/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h
+new file mode 100644
+index 0000000..aabbccdd
+--- /dev/null
++++ b/chrome/browser/nickel/adblock/nickel_subresource_filter_driver.h
+@@ -0,0 +1,25 @@
++#ifndef CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_SUBRESOURCE_FILTER_DRIVER_H_
++#define CHROME_BROWSER_NICKEL_ADBLOCK_NICKEL_SUBRESOURCE_FILTER_DRIVER_H_
++
++namespace subresource_filter {
++class RulesetService;
++}
++
++namespace nickel {
++
++class NickelSubresourceFilterDriver {
++ public:
++  NickelSubresourceFilterDriver();
++  ~NickelSubresourceFilterDriver();
++
++  void Initialize(subresource_filter::RulesetService* service);
++};
++
++} // namespace nickel
++
++#endif

@@ -1,42 +1,20 @@
 From: Nickel Browser Team <team@nickel-browser.org>
 Date: Thu, 01 Jan 2026 00:00:00 +0000
-Subject: [PATCH 02/10] nickel: user-agent — set Nickel product token
+Subject: [PATCH 02/10] nickel: user-agent — custom Nickel product token
 
-Keep the standard Chrome/Chromium UA format so websites don't break,
-but add a Nickel product token so users can identify their browser.
-
-Result:  Mozilla/5.0 (...) AppleWebKit/537.36 (KHTML, like Gecko)
-         Chrome/146.0.7680.177 Nickel/1.0 Safari/537.36
-
-The Chrome version is preserved for maximum site compatibility.
 ---
- chrome/common/channel_info.cc | 10 +++++++++-
- 1 file changed, 9 insertions(+), 1 deletion(-)
+ components/embedder_support/user_agent_utils.cc | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
 
-diff --git a/chrome/common/channel_info.cc b/chrome/common/channel_info.cc
-index 0000000..0000000 100644
---- a/chrome/common/channel_info.cc
-+++ b/chrome/common/channel_info.cc
-@@ -1,4 +1,4 @@
--// Copyright 2022 The Chromium Authors
-+// Copyright 2022 The Chromium Authors; Nickel Browser modifications 2026
- // Use of this source code is governed by a BSD-style license that can be
- // found in the LICENSE file.
+diff --git a/components/embedder_support/user_agent_utils.cc b/components/embedder_support/user_agent_utils.cc
+index aabbccdd..eeff0011 100644
+--- a/components/embedder_support/user_agent_utils.cc
++++ b/components/embedder_support/user_agent_utils.cc
+@@ -5,6 +5,10 @@
+ #include "components/embedder_support/user_agent_utils.h"
++#include "chrome/browser/nickel/nickel_version.h"
  
-@@ -20,6 +20,14 @@ std::string GetChannelName(WithExtendedStable with_extended_stable) {
-   return std::string();
+ std::string BuildUserAgentFromProduct(const std::string& product) {
++  std::string nickel_product = product + " NickelBrowser/" + nickel::GetNickelVersion();
++  return nickel_product;
  }
- 
-+#if defined(NICKEL_BROWSER)
-+// Nickel Browser: append product token to user-agent string.
-+// Called from content::BuildUserAgentFromProduct().
-+std::string GetNickelProductToken() {
-+  return "Nickel/1.0";
-+}
-+#endif  // defined(NICKEL_BROWSER)
-+
- std::string GetChannelSuffixForDataDir() {
-   return std::string();
- }
--- 
-2.40.0

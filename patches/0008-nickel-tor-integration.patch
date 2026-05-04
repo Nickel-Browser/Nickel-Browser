@@ -234,8 +234,8 @@ index 0000000..0000000
 +    // Simple connection test: try to connect to the SOCKS port.
 +    // In production this should use async I/O; here we use a blocking check
 +    // on a background thread (WaitForReady is never called on the UI thread).
-+    base::ScopedAllowBlockingForTesting allow_blocking;
-+    // TODO: Replace with non-blocking poll.
+    // base::ScopedAllowBlockingForTesting allow_blocking;
+    // TODO: Replace with non-blocking poll or ThreadPool task.
 +    base::PlatformThread::Sleep(base::Milliseconds(500));
 +    if (IsRunning()) {
 +      LOG(INFO) << "NickelTor: ready";

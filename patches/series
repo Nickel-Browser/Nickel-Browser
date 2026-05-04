@@ -39,3 +39,12 @@
 
 # ---- Build Integration (wire all Nickel components into chrome BUILD.gn) --
 0010-nickel-build-integration.patch
+
+# ---- Phase 1: Architecture & Wiring ---------------------------------------
+0011-nickel-wire-prefs.patch
+0012-nickel-wire-ntp.patch
+0013-nickel-build-deps.patch
+0014-nickel-wire-fingerprint.patch
+0015-nickel-adblock-subresource-filter.patch
+0016-nickel-wire-tor.patch
+0017-nickel-verify-download.patch

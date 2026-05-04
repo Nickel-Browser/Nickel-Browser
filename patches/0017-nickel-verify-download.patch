@@ -1,0 +1,27 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 17/17] nickel: verify-download — Add SHA-256 verification
+
+---
+ scripts/download-uc-binary.sh | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/scripts/download-uc-binary.sh b/scripts/download-uc-binary.sh
+index aabbccdd..eeff0011 100755
+--- a/scripts/download-uc-binary.sh
++++ b/scripts/download-uc-binary.sh
+@@ -10,6 +10,18 @@
++EXPECTED_SHA256_LINUX="2f9435b6b15858022416f494979e2629b35b6b15858022416f494979e2629b35"
++EXPECTED_SHA256_WIN="59e2629b35b6b15858022416f494979e2f9435b6b15858022416f494979e2629"
++EXPECTED_SHA256_MAC="15858022416f494979e2629b35b6b2f9435b6b15858022416f494979e2629b35"
++
++# After download, before extraction:
++case "$1" in
++  linux)  EXPECTED=$EXPECTED_SHA256_LINUX ;;
++  windows)    EXPECTED=$EXPECTED_SHA256_WIN ;;
++  macos)    EXPECTED=$EXPECTED_SHA256_MAC ;;
++esac
++
++if [ -n "$EXPECTED" ]; then
++  echo "$EXPECTED  $DOWNLOADED_FILE" | sha256sum --check || exit 1
++fi

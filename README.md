@@ -60,18 +60,16 @@
 
 ### 🏆 How We Compare (At a Glance)
 
-| What You Want | **Nickel Browser** | Brave Browser | Firefox/LibreWolf | Chrome |
-|---------------|-------------------|--------------|----------------|--------|
-| **Privacy (no tracking)** | ✅ **Perfect (architectural)** | ⚠️ Good (opt-out available) | ✅ Good (opt-out available) | ❌ Required |
-| **Ad Blocking** | 🔴 **Source-level (undetectable)** | 🟡 Extension-based (detectable) | 🟢 Add-on (removable) | ❌ None |
-| **Telemetry** | ❌ **Impossible to enable** | ⚠️ Has opt-out P3A | ✅ Opt-out | ✅ Extensive |
-| **Base Browser** | ✅ **Ungoogled-Chromium** (Google-free) | Standard Chromium (Google-controlled) | Quantum (Gecko) | Chromium (Google) |
-| **Business Model** | 🤝 **100% non-profit/community** | 💰 Crypto ads (BAT token) | 🏛️ Non-profit | 🏢 Ad-based |
-| **Governance** | 👥 **Community votes on roadmap** | 🏢 Corporate decides everything | 🏛️ Foundation | 🏢 Corporate |
-| **Proprietary Parts** | ❌ **Zero** | ⚠️ Some remain | ❌ Zero | ❌❌ Many |
-| **Tor Integration** | ✅ **Built-in (free)** | ✅ Add-on (free) | ✅ Add-on | ❌ None |
-| **VPN Integration** | ✅ **Built-in (free)** | 💰 Paid (Brave VPN) | ❌ None | ❌ None |
-| **Fingerprint Protection** | ✅ **Comprehensive** | ⚠️ Basic | ⚠️ Basic | ❌ None |
+| Feature          | **Nickel Browser** | Brave Browser | Firefox/LibreWolf | Chrome | Notes |
+|---------------|-------------------|--------------|----------------|--------|-------|
+| **Privacy (no tracking)** | ✅ Phase 1 | ⚠️ Good | ✅ Good | ❌ Required | Ungoogled-Chromium base |
+| **Ad Blocking** | ✅ Phase 2 | 🟡 Extension | 🟢 Add-on | ❌ None | subresource_filter + EasyList |
+| **Telemetry** | ✅ Phase 1 | ⚠️ Has P3A | ✅ Opt-out | ✅ Extensive | Architectural removal |
+| **Base Browser** | ✅ 146.0.7680 | Standard | Quantum | Chromium | Google-free base |
+| **Business Model** | 🤝 Community | 💰 Crypto | 🏛️ Non-profit | 🏢 Ad-based | Non-profit approach |
+| **Tor Integration** | ✅ Phase 2 | ✅ Add-on | ✅ Add-on | ❌ None | Requires Tor daemon |
+| **VPN Integration** | 🔧 Planned | 💰 Paid | ❌ None | ❌ None | Phase 4 |
+| **Fingerprint Protection** | ✅ Phase 2 | ⚠️ Basic | ⚠️ Basic | ❌ None | Canvas/WebGL/Audio |
 
 ---
 

@@ -1,24 +1,15 @@
 From: Nickel Browser Team <team@nickel-browser.org>
 Date: Thu, 01 Jan 2026 00:00:00 +0000
-Subject: [PATCH 01/10] nickel: branding — rename product to Nickel Browser
+Subject: [PATCH 01/10] nickel: branding — Deep product identity
 
-Replace all "Chromium" product identity with "Nickel Browser".
-ungoogled-chromium has already stripped Google branding; this patch
-applies the Nickel identity on top of that clean Chromium base.
-
-Files changed:
-  chrome/app/theme/chromium/BRANDING
-  chrome/installer/linux/common/chromium-browser/chromium-browser.info
-
-The BRANDING file drives the product name used throughout the build
-(window title, about page, desktop entry, etc.).
 ---
  chrome/app/theme/chromium/BRANDING | 12 +++---
- chrome/installer/linux/common/chromium-browser/chromium-browser.info |  4 +-
- 2 files changed, 8 insertions(+), 8 deletions(-)
+ chrome/app/chromium_strings.grd     | 10 ++++++++++
+ chrome/app/generated_resources.grd  | 10 ++++++++++
+ 3 files changed, 26 insertions(+), 6 deletions(-)
 
 diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
-index 0000000..0000000 100644
+index aabbccdd..eeff0011 100644
 --- a/chrome/app/theme/chromium/BRANDING
 +++ b/chrome/app/theme/chromium/BRANDING
 @@ -1,6 +1,6 @@
@@ -26,26 +17,23 @@ index 0000000..0000000 100644
 -COMPANY_SHORTNAME=Chromium
 -PRODUCT_FULLNAME=Chromium
 -PRODUCT_SHORTNAME=Chromium
--PRODUCT_EXE=chromium
--PRODUCT_INSTALLER_FULLNAME=Chromium Installer
 +COMPANY_FULLNAME=Nickel Browser Community
 +COMPANY_SHORTNAME=Nickel
 +PRODUCT_FULLNAME=Nickel Browser
 +PRODUCT_SHORTNAME=Nickel
-+PRODUCT_EXE=nickel-browser
-+PRODUCT_INSTALLER_FULLNAME=Nickel Browser Installer
-diff --git a/chrome/installer/linux/common/chromium-browser/chromium-browser.info b/chrome/installer/linux/common/chromium-browser/chromium-browser.info
-index 0000000..0000000 100644
---- a/chrome/installer/linux/common/chromium-browser/chromium-browser.info
-+++ b/chrome/installer/linux/common/chromium-browser/chromium-browser.info
-@@ -1,4 +1,4 @@
--[Desktop Entry]
--Name=Chromium Web Browser
--Comment=Access the Internet
--Icon=chromium-browser
-+[Desktop Entry]
-+Name=Nickel Browser
-+Comment=Block Everything. Leak Nothing. Own Your Web.
-+Icon=nickel-browser
--- 
-2.40.0
+diff --git a/chrome/app/chromium_strings.grd b/chrome/app/chromium_strings.grd
+index aabbccdd..eeff0011 100644
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -10,6 +10,9 @@
++      <message name="IDS_PRODUCT_NAME" desc="The product name">
++        Nickel Browser
++      </message>
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index aabbccdd..eeff0011 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -10,6 +10,9 @@
++      <message name="IDS_ABOUT_PRODUCT_NAME" desc="Product name on the about page">
++        Nickel Browser
++      </message>

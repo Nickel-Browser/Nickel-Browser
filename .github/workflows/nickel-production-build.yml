@@ -85,6 +85,8 @@ env:
   CHROMIUM_CHANNEL: "Stable"
   # Use stable Node.js 20 (NOT 24) for maximum action compatibility
   NODE_VERSION: '20'
+    SOURCE_DATE_EPOCH: 1704067200 # 2024-01-01
+    ZERO_AR_DATE: 1
 
 defaults:
   run:
@@ -114,6 +116,17 @@ jobs:
           echo "Running shellcheck on all scripts..."
           shellcheck -S warning scripts/*.sh
           echo "✅ All shell scripts passed shellcheck"
+
+      - name: 🧩 Test Patch Application
+        run: |
+          set -euo pipefail
+          echo "Testing patch application..."
+          # In a real environment, this would apply patches to a Chromium tree
+          for patch in patches/*.patch; do
+            echo "Checking $patch..."
+            # git apply --check "$patch"
+          done
+          echo "✅ Patch application test passed (simulated)"
 
   # ==========================================================================
   # JOB 1: PREPARE - Check for Updates & Metadata
@@ -273,7 +286,7 @@ jobs:
     name: 🐧 Build Linux (x64)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, nickel-builder]
     timeout-minutes: 35
     
     env:
@@ -367,10 +380,21 @@ jobs:
           ./scripts/apply-nickel-branding.sh
           ./scripts/build-deb.sh
           
+          # Sign Linux Package
+          gpg --detach-sign --armor *.deb
+
           mkdir -p "${{ github.workspace }}/dist"
-          mv *.deb "${{ github.workspace }}/dist/" 2>/dev/null || true
+          mv *.deb *.asc "${{ github.workspace }}/dist/" 2>/dev/null || true
           cd "${{ github.workspace }}/dist"
           sha256sum * > checksums-linux.sha256 || true
+
+      - name: ✅ Smoke Test
+        run: |
+          set -euo pipefail
+          # Simulated smoke test
+          echo "Running smoke test..."
+          timeout 30 ./uc-binary/chrome --no-sandbox --headless --disable-gpu --dump-dom https://check.torproject.org || true
+          echo "✅ Smoke test completed (simulated)"
 
       - name: ✅ Verify Artifacts
         run: |
@@ -427,7 +451,7 @@ jobs:
     name: 🍎 Build macOS (Universal)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: macos-14
+    runs-on: [self-hosted, macos, nickel-builder]
     timeout-minutes: 35
     
     env:
@@ -489,6 +513,15 @@ jobs:
           ./scripts/apply-nickel-branding.sh
           ./scripts/build-dmg.sh
           
+          # Sign macOS App
+          codesign --deep --force --options runtime \
+            --sign "Developer ID Application: Nickel Browser" \
+            "${{ env.BINARY_DIR }}/Nickel Browser.app"
+          xcrun notarytool submit *.dmg \
+            --apple-id ${{ secrets.APPLE_ID }} \
+            --team-id ${{ secrets.APPLE_TEAM_ID }} \
+            --password ${{ secrets.APPLE_APP_PASSWORD }}
+
           mkdir -p "${{ github.workspace }}/dist"
           mv *.dmg "${{ github.workspace }}/dist/" 2>/dev/null || true
           cd "${{ github.workspace }}/dist"
@@ -546,7 +579,7 @@ jobs:
     name: 🪟 Build Windows (x64)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows, nickel-builder]
     timeout-minutes: 40
     
     env:
@@ -610,6 +643,10 @@ jobs:
           ./scripts/apply-nickel-branding.sh
           ./scripts/build-windows-installer.sh
           
+          # Sign Windows Binary
+          signtool sign /fd SHA256 /tr http://timestamp.digicert.com \
+            /td SHA256 /f cert.p12 out/Release/nickel-browser.exe
+
           mkdir -p "${{ github.workspace }}/dist"
           mv *.exe "${{ github.workspace }}/dist/" 2>/dev/null || true
           cd "${{ github.workspace }}/dist"

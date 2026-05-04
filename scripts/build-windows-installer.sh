@@ -42,7 +42,7 @@ InstallDir "\$PROGRAMFILES64\Nickel Browser"
 InstallDirRegKey HKLM "Software\Nickel Browser" "Install_Dir"
 
 !define MUI_ABORTWARNING
-!define MUI_ICON "$NICKEL_DIR/src/nickel/branding/product_logo_256.ico"
+!define MUI_ICON "$NICKEL_DIR/src/nickel/branding/nickel.ico"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -59,7 +59,7 @@ InstallDirRegKey HKLM "Software\Nickel Browser" "Install_Dir"
 Section "Nickel Browser (Required)"
     SectionIn RO
     SetOutPath "\$INSTDIR"
-    File /r "$CHROME_ROOT\*"
+    File /r "$CHROME_ROOT\\*"
 
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NickelBrowser" "DisplayName" "Nickel Browser"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NickelBrowser" "UninstallString" "\$INSTDIR\uninstall.exe"
