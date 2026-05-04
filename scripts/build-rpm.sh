@@ -17,7 +17,7 @@ Name:           nickel-browser
 Version:        ${VERSION}
 Release:        1%{?dist}
 Summary:        Privacy-first Chromium fork
-License:        MIT and GPLv3
+License:        BSD-3-Clause and GPL-3.0
 URL:            https://nickel-browser.org
 Source0:        nickel-browser-%{version}.tar.gz
 
@@ -35,9 +35,10 @@ built-in Tor, VPN integration, fingerprint protection, and zero telemetry.
 mkdir -p %{buildroot}/opt/nickel-browser
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/bin
-cp -r * %{buildroot}/opt/nickel-browser/
+# Copy the compiled binary and resources
+cp -r out/Release/* %{buildroot}/opt/nickel-browser/
 cp %{_sourcedir}/nickel-browser.desktop %{buildroot}/usr/share/applications/
-ln -sf /opt/nickel-browser/chrome %{buildroot}/usr/bin/nickel-browser
+ln -sf /opt/nickel-browser/nickel-browser %{buildroot}/usr/bin/nickel-browser
 
 %files
 /opt/nickel-browser/

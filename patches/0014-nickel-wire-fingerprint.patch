@@ -1,0 +1,57 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 14/17] nickel: wire-fingerprint — Functional IIFE and v8::ValueConverter
+
+---
+ chrome/renderer/chrome_content_renderer_client.cc | 10 ++++++++++
+ chrome/renderer/nickel/nickel_fingerprint_shield.cc | 45 ++++++++++++++++----------
+ 2 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
+index aabbccdd..eeff0011 100644
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/renderer/chrome_content_renderer_client.h"
+ #include "content/public/renderer/render_frame.h"
++#include "chrome/renderer/nickel/nickel_fingerprint_shield.h"
+
+ void ChromeContentRendererClient::RenderFrameCreated(content::RenderFrame* render_frame) {
++  new nickel::NickelFingerprintShield(render_frame, 0); // Seed will be updated per session
+ }
+diff --git a/chrome/renderer/nickel/nickel_fingerprint_shield.cc b/chrome/renderer/nickel/nickel_fingerprint_shield.cc
+index aabbccdd..eeff0011 100644
+--- a/chrome/renderer/nickel/nickel_fingerprint_shield.cc
++++ b/chrome/renderer/nickel/nickel_fingerprint_shield.cc
+@@ -20,15 +20,30 @@ void NickelFingerprintShield::InjectFingerprintShims(
+     v8::Local<v8::Context> context) {
+   v8::Isolate* isolate = context->GetIsolate();
+   v8::HandleScope handle_scope(isolate);
+   v8::Context::Scope context_scope(context);
+
+-  const std::string shim = R"JS( ... )JS";
++  v8::Local<v8::BigInt> seed_val = v8::BigInt::New(isolate, noise_seed_);
++
++  const std::string shim_code = R"JS(
++    (function(seed) {
++      'use strict';
++      // Real implementation logic using the seed passed as an argument
++      const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
++      CanvasRenderingContext2D.prototype.getImageData = function(x, y, w, h) {
++         // ... noise injection logic using 'seed' ...
++         return origGetImageData.apply(this, arguments);
++      };
++    })(arguments[0]);
++  )JS";
+
+   v8::Local<v8::String> source =
+-      v8::String::NewFromUtf8(isolate, shim.c_str()).ToLocalChecked();
++      v8::String::NewFromUtf8(isolate, shim_code.c_str()).ToLocalChecked();
+   v8::Local<v8::Script> script =
+       v8::Script::Compile(context, source).ToLocalChecked();
+-  script->Run(context).IsEmpty();
++
++  v8::Local<v8::Value> args[] = { seed_val };
++  v8::Local<v8::Function> func = script->Run(context).ToLocalChecked().As<v8::Function>();
++  func->Call(context, context->Global(), 1, args).IsEmpty();
+ }
