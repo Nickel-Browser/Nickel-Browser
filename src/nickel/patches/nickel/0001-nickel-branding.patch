@@ -1,0 +1,21 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 01/10] nickel: branding — Deep product identity
+
+---
+ chrome/app/theme/chromium/BRANDING | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
+index aabbccdd..eeff0011 100644
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,6 +1,6 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=Chromium
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
++COMPANY_FULLNAME=Nickel Browser Community
++COMPANY_SHORTNAME=Nickel
++PRODUCT_FULLNAME=Nickel Browser
++PRODUCT_SHORTNAME=Nickel
