@@ -37,7 +37,7 @@ mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/bin
 cp -r * %{buildroot}/opt/nickel-browser/
 cp %{_sourcedir}/nickel-browser.desktop %{buildroot}/usr/share/applications/
-ln -sf /opt/nickel-browser/chrome %{buildroot}/usr/bin/nickel-browser
+ln -sf /opt/nickel-browser/nickel-browser %{buildroot}/usr/bin/nickel-browser
 
 %files
 /opt/nickel-browser/
