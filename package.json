@@ -10,7 +10,7 @@
     "release": "node scripts/release.js"
   },
   "dependencies": {
-    "shelljs": "^0.8.5"
+    "shelljs": "^0.10.0"
   },
   "chromium": {
     "version": "146.0.7680.0",
