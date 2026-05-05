@@ -89,7 +89,7 @@ which gclient && echo "✅ depot_tools ready"
 mkdir -p "$HOME/actions-runner" && cd "$HOME/actions-runner"
 
 # Download runner (use the URL shown by GitHub)
-curl -o actions-runner-linux-x64.tar.gz -L \
+curl -o actions-runner-linux-x64.tar.gz -L --fail --proto '=https' --retry 3 \
   https://github.com/actions/runner/releases/download/v2.xxx.x/actions-runner-linux-x64-2.xxx.x.tar.gz
 
 tar xzf ./actions-runner-linux-x64.tar.gz

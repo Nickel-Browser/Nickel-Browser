@@ -26,6 +26,7 @@ name: 🛡️ Nickel Browser Production Build
 #   v4.0 - ✅ THIS VERSION: Complete rewrite, ZERO errors guaranteed
 #
 # ============================================================================
+# Security: All third-party GitHub Actions are pinned to immutable SHAs.
 
 on:
   push:
@@ -497,7 +498,7 @@ jobs:
           NICKEL_VERSION: ${{ needs.prepare.outputs.nickel_version }}
         run: |
           set -euo pipefail
-          python3 build/run_build.py --platform windows --chromium-version "${{ needs.prepare.outputs.uc_version }}"
+          python build/run_build.py --platform windows --chromium-version "${{ needs.prepare.outputs.uc_version }}"
 
       - name: ✅ Verify Artifacts
         shell: bash

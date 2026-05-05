@@ -6,6 +6,20 @@
 
 ---
 
+## 🧱 Build Pipeline (Recommended)
+
+Nickel now ships a build pipeline script that standardizes the steps
+(`setup → fetch → patch → gn → compile → package`) and writes structured logs
+to `build.log`.
+
+```bash
+# Example (binary repackaging, Linux)
+python3 build/run_build.py --platform linux
+```
+
+> **Note:** The legacy scripts under `scripts/` are now **deprecated** for CI
+> usage and are retained for local troubleshooting only.
+
 ## 🎯 Decision Guide: Which Build Method?
 
 ```
@@ -151,7 +165,7 @@ sudo apt install -y git curl wget jq tar gzip coreutils
 
 ```bash
 # Install Homebrew if not present
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+/bin/bash -c "$(curl -fsSL --proto '=https' --retry 3 https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install dependencies
 brew install jq coreutils

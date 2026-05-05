@@ -2,6 +2,10 @@
 out/
 out_*/
 build/
+!build/
+build/*
+!build/config.yaml
+!build/run_build.py
 *.deb
 *.rpm
 *.AppImage

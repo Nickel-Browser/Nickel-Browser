@@ -34,6 +34,7 @@ name: 🛡️ Nickel Browser — Source Build (Linux)
 #   • Fallback            : ubuntu-22.04 (standard; may OOM on linking)
 #
 # ============================================================================
+# Security: All third-party GitHub Actions are pinned to immutable SHAs.
 
 on:
   push:

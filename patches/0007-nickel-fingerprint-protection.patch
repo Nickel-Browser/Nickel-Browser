@@ -7,13 +7,15 @@ Canvas and AudioContext outputs, returning generic WebGL vendor/renderer
 strings, and suppressing navigator.plugins/mimeTypes. All noise is seeded
 per-session to keep values stable within a run.
 ---
- third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc | 96 ++++++++++++++
+ third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.cc | 98 ++++++++++++++
  third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h  | 50 ++++++++
+ third_party/blink/public/common/features.h                                         |  4 +
+ third_party/blink/public/common/features.cc                                        |  5 +
  third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc          | 22 +++
- third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc          | 18 ++
+ third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc          | 20 +++
  third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc           | 14 ++
- third_party/blink/renderer/modules/navigator/navigator_plugins.cc                 | 20 +++
- 6 files changed, 220 insertions(+)
+ third_party/blink/renderer/modules/navigator/navigator_plugins.cc                 | 22 +++
+ 8 files changed, 235 insertions(+)
 
 diff --git a/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h b/third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h
 new file mode 100644
@@ -67,7 +69,9 @@ index 0000000..0000000
 +#include <atomic>
 +#include <mutex>
 +
++#include "base/feature_list.h"
 +#include "base/rand_util.h"
++#include "third_party/blink/public/common/features.h"
 +#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 +
 +namespace blink::nickel_fingerprint {
@@ -86,7 +90,8 @@ index 0000000..0000000
 +}  // namespace
 +
 +bool NickelFingerprintNoise::Enabled() {
-+  return true;
++  return base::FeatureList::IsEnabled(
++      blink::features::kNickelFingerprintProtection);
 +}
 +
 +uint64_t NickelFingerprintNoise::SessionSeed() {
@@ -127,6 +132,23 @@ index 0000000..0000000
 +
 +}  // namespace blink::nickel_fingerprint
 
+diff --git a/third_party/blink/public/common/features.h b/third_party/blink/public/common/features.h
+index 0000000..0000000 100644
+--- a/third_party/blink/public/common/features.h
++++ b/third_party/blink/public/common/features.h
+@@
++// Nickel: fingerprint protection (canvas/audio/webgl/plugins).
++BLINK_COMMON_EXPORT BASE_DECLARE_FEATURE(kNickelFingerprintProtection);
+
+diff --git a/third_party/blink/public/common/features.cc b/third_party/blink/public/common/features.cc
+index 0000000..0000000 100644
+--- a/third_party/blink/public/common/features.cc
++++ b/third_party/blink/public/common/features.cc
+@@
++BASE_FEATURE(kNickelFingerprintProtection,
++             "NickelFingerprintProtection",
++             base::FEATURE_ENABLED_BY_DEFAULT);
+
 diff --git a/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc
 index 0000000..0000000 100644
 --- a/third_party/blink/renderer/modules/canvas/canvas_rendering_context_2d.cc
@@ -149,11 +171,13 @@ index 0000000..0000000 100644
 @@
 +#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
 @@
-+  if (pname == GL_VENDOR) {
-+    return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLVendor();
-+  }
-+  if (pname == GL_RENDERER) {
-+    return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLRenderer();
++  if (blink::nickel_fingerprint::NickelFingerprintNoise::Enabled()) {
++    if (pname == GL_VENDOR) {
++      return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLVendor();
++    }
++    if (pname == GL_RENDERER) {
++      return blink::nickel_fingerprint::NickelFingerprintNoise::SpoofedWebGLRenderer();
++    }
 +  }
 
 diff --git a/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc b/third_party/blink/renderer/modules/webaudio/dynamics_compressor_node.cc
@@ -170,5 +194,9 @@ index 0000000..0000000 100644
 --- a/third_party/blink/renderer/modules/navigator/navigator_plugins.cc
 +++ b/third_party/blink/renderer/modules/navigator/navigator_plugins.cc
 @@
++#include "third_party/blink/renderer/modules/nickel_fingerprint/nickel_fingerprint_noise.h"
+@@
 +  // Nickel: suppress plugins/mimeTypes to reduce fingerprint surface.
-+  return MakeGarbageCollected<PluginArray>();
++  if (blink::nickel_fingerprint::NickelFingerprintNoise::Enabled()) {
++    return MakeGarbageCollected<PluginArray>();
++  }

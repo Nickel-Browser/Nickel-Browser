@@ -11,7 +11,6 @@
 #include "net/base/net_errors.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "src/components/nickel_adblock/adblock_filter_list.h"
-#include "url/origin.h"
 
 namespace nickel::adblock {
 

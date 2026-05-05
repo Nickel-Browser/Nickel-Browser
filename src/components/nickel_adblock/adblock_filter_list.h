@@ -15,6 +15,7 @@ inline constexpr char kNickelAdblockFilterList[] = R"(
 ||ads.example.com^
 ||tracking.example.net^$script,third-party
 ||analytics.example.org^$image,third-party
+*/ads/*$image
 @@||ads.example.com/allow^$script
 
 ! Cosmetic filtering

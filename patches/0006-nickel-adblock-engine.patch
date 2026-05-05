@@ -30,6 +30,7 @@ index 0000000..3954189
 +||ads.example.com^
 +||tracking.example.net^$script,third-party
 +||analytics.example.org^$image,third-party
++*/ads/*$image
 +@@||ads.example.com/allow^$script
 +
 +! Cosmetic filtering
@@ -588,6 +589,7 @@ index 0000000..7ea3927
 +#include <memory>
 +
 +#include "content/public/browser/url_loader_throttle.h"
++#include "net/redirect_info.h"
 +#include "src/components/nickel_adblock/adblock_engine.h"
 +
 +namespace nickel::adblock {
@@ -634,8 +636,8 @@ index 0000000..f73ae0a
 +
 +#include "base/no_destructor.h"
 +#include "net/base/net_errors.h"
++#include "services/network/public/cpp/resource_request.h"
 +#include "src/components/nickel_adblock/adblock_filter_list.h"
-+#include "url/origin.h"
 +
 +namespace nickel::adblock {
 +
