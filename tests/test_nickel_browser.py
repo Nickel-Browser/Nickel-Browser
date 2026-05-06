@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import http.server
 import os
-import shutil
 import socket
 import subprocess
 import sys
