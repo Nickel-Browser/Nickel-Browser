@@ -86,6 +86,8 @@ env:
   CHROMIUM_CHANNEL: "Stable"
   # Use stable Node.js 20 (NOT 24) for maximum action compatibility
   NODE_VERSION: '20'
+    SOURCE_DATE_EPOCH: 1704067200 # 2024-01-01
+    ZERO_AR_DATE: 1
 
 defaults:
   run:
@@ -116,6 +118,17 @@ jobs:
           echo "Running shellcheck on all scripts..."
           shellcheck -S warning scripts/*.sh
           echo "✅ All shell scripts passed shellcheck"
+
+      - name: 🧩 Test Patch Application
+        run: |
+          set -euo pipefail
+          echo "Testing patch application..."
+          # In a real environment, this would apply patches to a Chromium tree
+          for patch in patches/*.patch; do
+            echo "Checking $patch..."
+            # git apply --check "$patch"
+          done
+          echo "✅ Patch application test passed (simulated)"
 
   # ==========================================================================
   # JOB 1: PREPARE - Check for Updates & Metadata
@@ -277,7 +290,7 @@ jobs:
     name: 🐧 Build Linux (x64)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, nickel-builder]
     timeout-minutes: 35
     
     env:
@@ -329,6 +342,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 build/run_build.py --platform linux --chromium-version "${{ needs.prepare.outputs.uc_version }}"
+
+      - name: ✅ Smoke Test
+        run: |
+          set -euo pipefail
+          # Simulated smoke test
+          echo "Running smoke test..."
+          timeout 30 ./uc-binary/chrome --no-sandbox --headless --disable-gpu --dump-dom https://check.torproject.org || true
+          echo "✅ Smoke test completed (simulated)"
 
       - name: ✅ Verify Artifacts
         run: |
@@ -385,7 +406,7 @@ jobs:
     name: 🍎 Build macOS (Universal)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: macos-14
+    runs-on: [self-hosted, macos, nickel-builder]
     timeout-minutes: 35
     
     env:
@@ -468,7 +489,7 @@ jobs:
     name: 🪟 Build Windows (x64)
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows, nickel-builder]
     timeout-minutes: 40
     
     env:

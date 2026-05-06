@@ -1,0 +1,19 @@
+{
+  "name": "nickel-browser",
+  "version": "1.0.0",
+  "description": "Nickel Browser Build Orchestration",
+  "main": "index.js",
+  "scripts": {
+    "init": "node scripts/init.js",
+    "build": "node scripts/build.js",
+    "test": "node scripts/test.js",
+    "release": "node scripts/release.js"
+  },
+  "dependencies": {
+    "shelljs": "^0.8.5"
+  },
+  "chromium": {
+    "version": "146.0.7680.0",
+    "nickel_core_revision": "main"
+  }
+}

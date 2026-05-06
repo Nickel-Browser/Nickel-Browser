@@ -60,7 +60,7 @@ index 0000000..0000000
 +constexpr char kDDGName[]    = "DuckDuckGo";
 +constexpr char kDDGKeyword[] = "duckduckgo.com";
 +constexpr char kDDGSearchURL[] =
-+    "https://duckduckgo.com/?q={searchTerms}&t=nickel";
+     "https://duckduckgo.com/?q={searchTerms}";
 +constexpr char kDDGSuggestURL[] =
 +    "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
 +constexpr char kDDGFaviconURL[] =

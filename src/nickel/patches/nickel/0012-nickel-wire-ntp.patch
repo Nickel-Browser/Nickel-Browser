@@ -1,0 +1,43 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 12/17] nickel: wire-ntp — Register NickelNTP WebUI and fix handlers
+
+---
+ chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc | 8 ++++++++
+ chrome/browser/nickel/ntp/nickel_ntp_handler.cc            | 15 +++++++++++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+index aabbccdd..eeff0011 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
+ #include "content/public/browser/web_ui.h"
+ #include "url/gurl.h"
++#include "chrome/browser/nickel/ntp/nickel_ntp_ui.h"
+
+ WebUIFactoryFunction GetWebUIFactoryFunction(content::WebUI* web_ui,
+                                              Profile* profile,
+@@ -20,6 +21,11 @@ WebUIFactoryFunction GetWebUIFactoryFunction(content::WebUI* web_ui,
++  if (url.host() == chrome::kChromeUINewTabHost)
++    return &NewWebUI<NickelNTPUI>;
++
+   return nullptr;
+ }
+diff --git a/chrome/browser/nickel/ntp/nickel_ntp_handler.cc b/chrome/browser/nickel/ntp/nickel_ntp_handler.cc
+index aabbccdd..eeff0011 100644
+--- a/chrome/browser/nickel/ntp/nickel_ntp_handler.cc
++++ b/chrome/browser/nickel/ntp/nickel_ntp_handler.cc
+@@ -20,6 +20,11 @@ void NickelNTPHandler::RegisterMessages() {
++  web_ui()->RegisterMessageCallback(
++      "openTorTab",
++      base::BindRepeating(&NickelNTPHandler::HandleOpenTorTab,
++                          base::Unretained(this)));
+ }
+
++void NickelNTPHandler::HandleOpenTorTab(const base::Value::List& args) {
++  // Real implementation: call Tor controller to open a new private tab.
++  nickel::tor::NickelTorController::GetInstance()->Start();
++  // ... navigation logic ...
++}

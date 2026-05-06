@@ -17,7 +17,7 @@ Name:           nickel-browser
 Version:        ${VERSION}
 Release:        1%{?dist}
 Summary:        Privacy-first Chromium fork
-License:        MIT and GPLv3
+License:        BSD-3-Clause and GPL-3.0
 URL:            https://nickel-browser.org
 Source0:        nickel-browser-%{version}.tar.gz
 

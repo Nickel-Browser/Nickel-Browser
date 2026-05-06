@@ -1,0 +1,32 @@
+From: Nickel Browser Team <team@nickel-browser.org>
+Date: Thu, 01 Jan 2026 00:00:00 +0000
+Subject: [PATCH 13/17] nickel: build-deps — Add Nickel dependencies to BUILD.gn
+
+---
+ chrome/browser/BUILD.gn  | 10 ++++++++++
+ chrome/renderer/BUILD.gn |  5 +++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index aabbccdd..eeff0011 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -50,6 +50,11 @@ static_library("browser") {
+     "//base",
+     "//chrome/common",
++    "//chrome/browser/nickel",
++    "//chrome/browser/nickel:adblock",
++    "//chrome/browser/nickel:tor",
+   ]
+ }
+diff --git a/chrome/renderer/BUILD.gn b/chrome/renderer/BUILD.gn
+index aabbccdd..eeff0011 100644
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -30,6 +30,10 @@ static_library("renderer") {
+   deps = [
+     "//base",
+     "//content/public/renderer",
++    "//chrome/renderer/nickel_renderer",
+   ]
+ }
