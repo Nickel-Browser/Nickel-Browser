@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import functools
 import http.server
 import os
 import socket
@@ -80,7 +81,7 @@ def run_adblock_test(binary: Path) -> None:
         (web_root / "index.html").write_text(html, encoding="utf-8")
 
         port = find_free_port()
-        handler = LoggingHandler
+        handler = functools.partial(LoggingHandler, directory=str(web_root))
         server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
         server.seen_paths = set()  # type: ignore[attr-defined]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
