@@ -35,7 +35,18 @@ built-in Tor, VPN integration, fingerprint protection, and zero telemetry.
 mkdir -p %{buildroot}/opt/nickel-browser
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/bin
-cp -r * %{buildroot}/opt/nickel-browser/
+tar -cf - \
+  --exclude='./.*' \
+  --exclude='./obj' \
+  --exclude='./gen' \
+  --exclude='./testing' \
+  --exclude='./args.gn' \
+  --exclude='./*.ninja*' \
+  --exclude='./*.o' \
+  --exclude='./*.a' \
+  --exclude='./*.d' \
+  --exclude='./*.rsp' \
+  . | tar -C %{buildroot}/opt/nickel-browser -xf -
 cp %{_sourcedir}/nickel-browser.desktop %{buildroot}/usr/share/applications/
 ln -sf /opt/nickel-browser/nickel-browser %{buildroot}/usr/bin/nickel-browser
 
