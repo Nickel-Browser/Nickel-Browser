@@ -13,6 +13,7 @@
 
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
+#include "base/synchronization/lock.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
 namespace nickel::adblock {
@@ -288,15 +289,14 @@ struct NickelAdblockEngine::CosmeticRule {
   bool is_exception = false;
 };
 
-NickelAdblockEngine::NickelAdblockEngine() {
-  DETACH_FROM_SEQUENCE(sequence_checker_);
-}
+NickelAdblockEngine::NickelAdblockEngine() = default;
 
 NickelAdblockEngine::~NickelAdblockEngine() = default;
 
 size_t NickelAdblockEngine::LoadRules(const std::string& filter_list_text) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  Clear();
+  base::AutoLock auto_lock(lock_);
+  network_rules_.clear();
+  cosmetic_rules_.clear();
 
   const auto lines = base::SplitString(filter_list_text, "\n",
                                        base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
@@ -327,12 +327,12 @@ size_t NickelAdblockEngine::LoadRules(const std::string& filter_list_text) {
 }
 
 size_t NickelAdblockEngine::RuleCount() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  base::AutoLock auto_lock(lock_);
   return network_rules_.size() + cosmetic_rules_.size();
 }
 
 void NickelAdblockEngine::Clear() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  base::AutoLock auto_lock(lock_);
   network_rules_.clear();
   cosmetic_rules_.clear();
 }
@@ -340,7 +340,7 @@ void NickelAdblockEngine::Clear() {
 FilterResult NickelAdblockEngine::ShouldBlockRequest(const GURL& request_url,
                                                      const GURL& document_url,
                                                      RequestType type) const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  base::AutoLock auto_lock(lock_);
   FilterResult result;
   if (!request_url.is_valid()) {
     return result;
@@ -401,7 +401,7 @@ FilterResult NickelAdblockEngine::ShouldBlockRequest(const GURL& request_url,
 CosmeticResult NickelAdblockEngine::ShouldHideElement(
     const GURL& document_url,
     const std::string& selector) const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  base::AutoLock auto_lock(lock_);
   CosmeticResult result;
 
   const std::string doc_domain = base::ToLowerASCII(GetRegistrableDomain(document_url));

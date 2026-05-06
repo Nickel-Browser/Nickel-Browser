@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "base/sequence_checker.h"
+#include "base/synchronization/lock.h"
 #include "url/gurl.h"
 
 namespace nickel::adblock {
@@ -44,7 +44,7 @@ struct CosmeticResult {
 };
 
 // NickelAdblockEngine evaluates filter lists against network requests.
-// All public methods must be called on the same sequence.
+// Thread-safe after rules are loaded.
 class NickelAdblockEngine {
  public:
   NickelAdblockEngine();
@@ -80,7 +80,7 @@ class NickelAdblockEngine {
   std::vector<NetworkRule> network_rules_;
   std::vector<CosmeticRule> cosmetic_rules_;
 
-  SEQUENCE_CHECKER(sequence_checker_);
+  mutable base::Lock lock_;
 };
 
 }  // namespace nickel::adblock

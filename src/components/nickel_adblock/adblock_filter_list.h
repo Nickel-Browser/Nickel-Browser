@@ -21,7 +21,7 @@ inline constexpr char kNickelAdblockFilterList[] = R"(
 ! Cosmetic filtering
 example.com##.ad-banner
 ##.sponsored
-#@#example.com##.sponsored
+example.com#@#.sponsored
 )";
 
 }  // namespace nickel::adblock

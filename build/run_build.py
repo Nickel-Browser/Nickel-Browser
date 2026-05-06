@@ -99,6 +99,8 @@ def build_pipeline(config: Dict[str, Any], platform: str, logger: logging.Logger
     chromium_version = chromium_version or config.get("chromium_version", "latest")
     uc_binary_dir = REPO_ROOT / config.get("uc_binary_dir", "uc-binary")
     dist_dir = REPO_ROOT / config.get("dist_dir", "dist")
+    if build_mode != "binary" and platform != "linux":
+        raise ValueError("Source builds are supported only on linux.")
 
     def setup() -> None:
         dist_dir.mkdir(parents=True, exist_ok=True)

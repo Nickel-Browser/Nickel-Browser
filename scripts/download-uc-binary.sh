@@ -128,7 +128,7 @@ else
     CHECKSUM_CMD="shasum -a 256"
 fi
 
-EXPECTED_SUM=$(grep " $ASSET_NAME\$" "$TARGET_DIR/SHA256SUMS" | head -n 1 | awk '{print $1}')
+EXPECTED_SUM=$(grep -F -- "  $ASSET_NAME" "$TARGET_DIR/SHA256SUMS" | head -n 1 | awk '{print $1}')
 if [ -z "$EXPECTED_SUM" ]; then
     echo "❌ SHA256SUMS missing entry for $ASSET_NAME"
     exit 1

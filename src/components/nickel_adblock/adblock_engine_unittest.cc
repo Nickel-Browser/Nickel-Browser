@@ -19,7 +19,7 @@ constexpr char kTestList[] = R"(
 ! Cosmetic rules
 example.com##.ad-slot
 ##.sponsored
-#@#example.com##.sponsored
+example.com#@#.sponsored
 )";
 
 }  // namespace
